@@ -19,12 +19,14 @@ class ValveResult:
     topic_embedding: List[float] = field(default_factory=list)
     splits: List[str] = field(default_factory=list)
 
+from heart.level3_purifier import extract_and_parse_json
+
 async def classify_intent(text: str) -> dict:
-    """Calls Gemma 27B to classify the intent of the text."""
+    """Calls L2 intent model to classify the intent of the text with robust markdown/JSON extraction."""
     prompt = HEART_L2_CLASSIFY_PROMPT + f"\nUSER MESSAGE: {text}\n"
     try:
         response = await call_heart_l2(prompt)
-        return json.loads(response)
+        return extract_and_parse_json(response)
     except Exception:
         # Fallback if classification fails
         return {"intent_type": "permanent_fact", "is_permanent": True, "confidence": 0.5}

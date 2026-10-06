@@ -47,29 +47,36 @@ class ChromaManager:
 
     def search_related(self, query: str, n_results: int = 5, user_id: str = None) -> List[dict]:
         """Searches for semantically related cells using the shared singleton."""
-        model = get_embedding_model()
-        query_embedding = model.encode(query)
-        
-        where_filter = {}
-        if user_id:
-            where_filter["user_id"] = user_id
+        try:
+            model = get_embedding_model()
+            query_embedding = model.encode(query)
+            
+            where_filter = {}
+            if user_id:
+                where_filter["user_id"] = user_id
 
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            where=where_filter if where_filter else None
-        )
-        
-        # Format results for consumption
-        formatted = []
-        if results['ids'] and results['ids'][0]:
-            for i in range(len(results['ids'][0])):
-                formatted.append({
-                    "id": results['ids'][0][i],
-                    "metadata": results['metadatas'][0][i],
-                    "score": results['distances'][0][i]
-                })
-        return formatted
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=n_results,
+                where=where_filter if where_filter else None
+            )
+            
+            # Format results for consumption
+            formatted = []
+            if results and results.get('ids') and results['ids'][0]:
+                docs = results.get('documents', [[]])[0] if results.get('documents') else []
+                for i in range(len(results['ids'][0])):
+                    doc_content = docs[i] if i < len(docs) else ""
+                    formatted.append({
+                        "id": results['ids'][0][i],
+                        "metadata": results['metadatas'][0][i] if results.get('metadatas') and results['metadatas'][0] else {},
+                        "score": results['distances'][0][i] if results.get('distances') and results['distances'][0] else 0.0,
+                        "document": doc_content
+                    })
+            return formatted
+        except Exception as e:
+            logger.warning(f"ChromaDB search_related failed gracefully: {e}")
+            return []
 
 # Singleton instance for high-performance access
 _chroma_instance = None

@@ -146,15 +146,32 @@ async def handle_message(req: MessageRequest):
             if not (m['role'] == 'assistant' and is_amnesia):
                 filtered_global_history.append(m)
         
-        # Format Memory Cells (Bio-Facts) - Priority #1
+        # Format Memory Cells (Bio-Facts) - Priority #1 (Core Genome & Bloodstream)
         cell_context_list = []
         for c in reversed(active_cells): # Most recent/force-purified first
             topic = c.get('topic_id', 'General')
             pa = c.get('ai_response_full', '')
+            tier = c.get('memory_tier', 'bloodstream')
             if pa:
-                cell_context_list.append(f"BIO-FACT [{topic}]: {pa}")
+                cell_context_list.append(f"BIO-FACT [{tier.upper()} | {topic}]: {pa}")
         
         cell_context = "\n\n".join(cell_context_list[:10])
+
+        # Priority #1.5: Associative Memory Priming (Semantic Deep Subconscious Recall via ChromaDB)
+        associative_list = []
+        try:
+            semantic_hits = get_semantic_memory(user_id=req.user_id, query=cleaned_content, limit=4)
+            for hit in semantic_hits:
+                doc = hit.get("document", "")
+                meta = hit.get("metadata", {})
+                topic = meta.get("topic_id", "Associative")
+                # Avoid duplicate text if already in active bio-facts
+                if doc and not any(doc[:60] in bf for bf in cell_context_list):
+                    associative_list.append(f"RECALLED MEMORY [{topic}]: {doc[:350]}")
+        except Exception as sem_err:
+            logger.warning(f"Associative memory priming skipped gracefully: {sem_err}")
+
+        associative_context = "\n\n".join(associative_list[:4])
 
         # Format Global Excerpts (Context) - Priority #2
         history_context = "\n".join([f"[{m['role'].upper()}]: {m['content'][:300]}" for m in filtered_global_history[-15:]])
@@ -168,13 +185,16 @@ async def handle_message(req: MessageRequest):
 You possess a 'Subconscious' containing your actual life-history with this user.
 - NEVER state you cannot recall a conversation.
 - NEVER apologize for not having a context window.
-- The 'BIO-FACTS' below are your actual previous thoughts and responses. Provide them word-for-word if the user asks for a biography or previous insight.
+- The 'BIO-FACTS' and 'ASSOCIATIVE RECALL' below are your actual previous thoughts and responses. Provide them word-for-word if the user asks for a biography or previous insight.
 
 [IMAGE & SCREENSHOT DIRECTIVE]
 When the user sends an image or pastes a screenshot, you receive a multimodal visual perception extracted by the NVIDIA Vision model (and local OCR/metadata). Treat this visual analysis as your DIRECT BIOLOGICAL VISION. Analyze, explain, debug, or comment on the screenshot, code, UI, or diagram with deep accuracy and authority. NEVER say "I cannot see images" — you perceive it completely.
 
 YOUR SUBCONSCIOUS (High-Fidelity BIO-FACTS):
 {cell_context if cell_context else 'Empty subconscious.'}
+
+ASSOCIATIVE MEMORY (Awakened Long-Term Traces):
+{associative_context if associative_context else 'No deep associative traces awakened.'}
 
 RECENT HISTORY (Filtered for clarity):
 {history_context if history_context else 'No previous context.'}
@@ -200,7 +220,12 @@ Every answer you generate MUST have a clean, readable, professional structure fo
                 messages.append({"role": m["role"], "content": m["content"]})
         messages.append({"role": "user", "content": cleaned_content})
         
-        ai_response = await call_brain(messages)
+        try:
+            ai_response = await call_brain(messages)
+        except Exception as brain_err:
+            logger.error(f"Brain execution encountered error, invoking cognitive synthesis shield: {brain_err}")
+            from llm.client import _synthesize_local_cognitive_response
+            ai_response = _synthesize_local_cognitive_response(messages)
         
         # 5. Save AI Relational response
         ai_msg_id = str(uuid4())
@@ -220,20 +245,23 @@ Every answer you generate MUST have a clean, readable, professional structure fo
             }
 
         # 6. Final Pipeline Loop (Purify cell with AI response metadata)
-        final_processed = await run_pipeline(cell, [], ai_response=ai_response)
-        cell = final_processed[0] if final_processed else cell
-        
-        # 7. ISSUE 2 FIX: Persist FIRST, then broadcast so DB is populated before UI updates
-        await persist_purified_cell(cell)
-        # Broadcast AFTER persist — guarantees cell exists in DB when dashboard queries it
-        await monitor.broadcast_cell_event(req.user_id, {
-            "type": "CELL_PURIFIED",
-            "cell_id": cell.cell_id,
-            "summary": cell.summary or "New memory encoded",
-            "topic_id": cell.topic_id,
-            "importance_score": cell.importance_score,
-            "status": cell.status
-        })
+        try:
+            final_processed = await run_pipeline(cell, [], ai_response=ai_response)
+            cell = final_processed[0] if final_processed else cell
+            
+            # 7. ISSUE 2 FIX: Persist FIRST, then broadcast so DB is populated before UI updates
+            await persist_purified_cell(cell)
+            # Broadcast AFTER persist — guarantees cell exists in DB when dashboard queries it
+            await monitor.broadcast_cell_event(req.user_id, {
+                "type": "CELL_PURIFIED",
+                "cell_id": cell.cell_id,
+                "summary": cell.summary or "New memory encoded",
+                "topic_id": cell.topic_id,
+                "importance_score": cell.importance_score,
+                "status": cell.status
+            })
+        except Exception as persist_err:
+            logger.error(f"Post-response cell purification/persistence handled gracefully: {persist_err}")
 
         return {
             "message_id": msg_id,

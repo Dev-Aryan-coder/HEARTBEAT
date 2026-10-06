@@ -55,6 +55,55 @@ async def _do_post(client: httpx.AsyncClient, url: str, headers: dict, payload: 
     except httpx.HTTPStatusError as e:
         raise LLMCallError(f"API Error: {e.response.status_code} - {e.response.text}")
 
+import time
+
+class CircuitBreaker:
+    """
+    Resilient Circuit Breaker protecting against cascading cloud failures.
+    States: CLOSED (normal), OPEN (broken, fast failover), HALF_OPEN (probing recovery)
+    """
+    def __init__(self, name: str, failure_threshold: int = 3, recovery_time_seconds: float = 30.0):
+        self.name = name
+        self.failure_threshold = failure_threshold
+        self.recovery_time = recovery_time_seconds
+        self.failure_count = 0
+        self.last_failure_time = 0.0
+        self.state = "CLOSED"
+
+    def can_attempt(self) -> bool:
+        if self.state == "CLOSED":
+            return True
+        now = time.time()
+        if self.state == "OPEN":
+            if now - self.last_failure_time > self.recovery_time:
+                self.state = "HALF_OPEN"
+                logger.info(f"[{self.name}] Circuit transitioning to HALF_OPEN (testing probe).")
+                return True
+            return False
+        # HALF_OPEN allows single probe
+        return True
+
+    def record_success(self):
+        if self.state != "CLOSED":
+            logger.info(f"[{self.name}] Probe succeeded! Circuit reset to CLOSED.")
+        self.failure_count = 0
+        self.state = "CLOSED"
+
+    def record_failure(self):
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        if self.failure_count >= self.failure_threshold:
+            self.state = "OPEN"
+            logger.warning(f"[{self.name}] Circuit TRIPPED to OPEN ({self.failure_count} failures). Fast failover active for {self.recovery_time}s.")
+
+    def reset(self):
+        self.failure_count = 0
+        self.state = "CLOSED"
+        self.last_failure_time = 0.0
+
+groq_breaker = CircuitBreaker("GroqPrimary", failure_threshold=3, recovery_time_seconds=30.0)
+openrouter_breaker = CircuitBreaker("OpenRouterSecondary", failure_threshold=3, recovery_time_seconds=30.0)
+
 def _map_model_for_groq(model: str) -> str:
     """Maps generic or legacy model slugs to valid ultra-low-latency Groq endpoints."""
     m_lower = model.lower()
@@ -134,7 +183,7 @@ async def call_llm(key_env_name: str, model: str, messages: List[dict], json_mod
     )
 
     # ── TIER 1: PRIMARY GROQ API CALL ──
-    if groq_key:
+    if groq_key and groq_breaker.can_attempt():
         groq_model = _map_model_for_groq(model)
         headers = {
             "Authorization": f"Bearer {groq_key}",
@@ -157,12 +206,16 @@ async def call_llm(key_env_name: str, model: str, messages: List[dict], json_mod
                 data = await _do_post(client, url, headers, payload)
                 content = data["choices"][0]["message"]["content"]
                 if content:
+                    groq_breaker.record_success()
                     return content
         except Exception as e:
+            groq_breaker.record_failure()
             logger.warning(f"[COGNITIVE MESH] Primary Groq call failed ({str(e)}). Switching to Failover Mesh...")
+    elif groq_key and not groq_breaker.can_attempt():
+        logger.info("[COGNITIVE MESH] Groq circuit is OPEN. Fast-failing directly to Tier 2 OpenRouter.")
 
     # ── TIER 2: SECONDARY OPENROUTER FAILOVER MESH ──
-    if openrouter_key:
+    if openrouter_key and openrouter_breaker.can_attempt():
         or_model = _map_model_for_openrouter(model)
         headers = {
             "Authorization": f"Bearer {openrouter_key}",
@@ -186,9 +239,13 @@ async def call_llm(key_env_name: str, model: str, messages: List[dict], json_mod
                 data = await _do_post(client, or_url, headers, payload)
                 content = data["choices"][0]["message"]["content"]
                 if content:
+                    openrouter_breaker.record_success()
                     return content
         except Exception as e:
+            openrouter_breaker.record_failure()
             logger.warning(f"[COGNITIVE MESH] Secondary OpenRouter call failed ({str(e)}). Switching to Local Engine...")
+    elif openrouter_key and not openrouter_breaker.can_attempt():
+        logger.info("[COGNITIVE MESH] OpenRouter circuit is OPEN. Fast-failing directly to Tier 3 Local Synthesizer.")
 
     # ── TIER 3: AUTONOMOUS LOCAL COGNITIVE SYNTHESIZER ──
     # If in JSON mode, return valid structured JSON fallback

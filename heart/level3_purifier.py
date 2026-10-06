@@ -108,7 +108,7 @@ async def purify(cleaned_text: str, ai_response: Optional[str] = None) -> Purifi
             "user_content": cleaned_text,
             "importance_score": 6,
             "keywords": words[:4] if words else ["subconscious", "memory"],
-            "topic_id": f"pref_{auto_topic}",
+            "topic_id": "general",
             "summary": f"Interaction: {cleaned_text[:60]}"
         }
         

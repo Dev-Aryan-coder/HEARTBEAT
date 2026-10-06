@@ -15,6 +15,15 @@ class HeartbeatMonitor:
         if user_id not in self.active_connections:
             self.active_connections[user_id] = []
         self.active_connections[user_id].append(websocket)
+        clean_uid = user_id.strip() if user_id and user_id.strip() else "ANONYMOUS"
+        try:
+            await websocket.send_json({
+                "type": "WELCOME",
+                "user_id": user_id if user_id and user_id.strip() else clean_uid,
+                "status": "connected"
+            })
+        except Exception as e:
+            logger.debug(f"Could not send welcome packet: {e}")
 
     def disconnect(self, websocket: WebSocket, user_id: str):
         if user_id in self.active_connections:
@@ -49,12 +58,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     try:
         while True:
             try:
-                # ISSUE 13 FIX: Add timeout to detect dead connections
+                # Fast keepalive timeout
                 data = await asyncio.wait_for(
                     websocket.receive_text(),
-                    timeout=30.0  # 30 second timeout
+                    timeout=2.0
                 )
-                # Echo pong for keepalive
                 if data.strip().lower() == "ping":
                     await websocket.send_text("pong")
             except asyncio.TimeoutError:

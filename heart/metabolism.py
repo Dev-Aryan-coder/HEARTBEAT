@@ -117,6 +117,58 @@ async def run_metabolic_cycle(user_id: Optional[str] = None) -> Dict[str, Any]:
             if status == 'active':
                 active_count += 1
 
+    # 🧬 HIPPOCAMPAL SLEEP CONSOLIDATION (DeepMind Experience Distillation)
+    consolidated_count = 0
+    try:
+        user_filter = "AND user_id = ?" if user_id else ""
+        consol_params = (_normalize_user_id(user_id),) if user_id else ()
+        cursor.execute(f"""
+            SELECT topic_id, user_id, COUNT(*) as cnt
+            FROM blood_cells
+            WHERE status = 'active' AND memory_tier = 'episodic' AND topic_id != '' AND topic_id IS NOT NULL {user_filter}
+            GROUP BY topic_id, user_id
+            HAVING cnt >= 3
+        """, consol_params)
+        clusters = cursor.fetchall()
+        
+        for cluster in clusters:
+            topic = cluster['topic_id']
+            uid = cluster['user_id']
+            cursor.execute("""
+                SELECT cell_id, summary, ai_response_full, importance_score
+                FROM blood_cells
+                WHERE user_id = ? AND topic_id = ? AND status = 'active' AND memory_tier = 'episodic'
+                ORDER BY created_at ASC
+            """, (uid, topic))
+            c_cells = cursor.fetchall()
+            summaries = [c['summary'] or c['ai_response_full'] or "" for c in c_cells if c['summary'] or c['ai_response_full']]
+            if summaries:
+                synthesized_text = f"Consolidated Knowledge on [{topic}]: " + " | ".join(summaries[:4])
+                from uuid import uuid4
+                new_cid = str(uuid4())
+                cursor.execute("""
+                    INSERT INTO blood_cells (
+                        cell_id, user_id, user_raw_content, user_content,
+                        ai_response_full, ai_response_summary,
+                        cell_type, status, memory_tier, importance_score,
+                        topic_id, summary, created_at, last_activated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    new_cid, uid, synthesized_text, synthesized_text,
+                    synthesized_text, synthesized_text[:200],
+                    "purified", "active", "core_genome", 9,
+                    topic, synthesized_text[:250], now_iso, now_iso
+                ))
+                for c in c_cells:
+                    cursor.execute("UPDATE blood_cells SET status = 'dormant', superseded_by = ? WHERE cell_id = ?", (new_cid, c['cell_id']))
+                consolidated_count += 1
+                core_count += 1
+                dormant_count += len(c_cells)
+                active_count = max(0, active_count - len(c_cells) + 1)
+                logger.info(f"🧬 CONSOLIDATION: Synthesized {len(c_cells)} episodic cells for topic '{topic}' into Core Genome {new_cid}")
+    except Exception as consol_err:
+        logger.warning(f"Hippocampal consolidation skipped gracefully: {consol_err}")
+
     conn.commit()
 
     # Calculate dynamic biological vital signs
@@ -133,6 +185,7 @@ async def run_metabolic_cycle(user_id: Optional[str] = None) -> Dict[str, Any]:
         "decayed_this_cycle": decayed_count,
         "hibernated_this_cycle": dormant_shifted_count,
         "expired_this_cycle": expired_count,
+        "consolidated_this_cycle": consolidated_count,
         "status": "healthy_rhythm"
     }
 

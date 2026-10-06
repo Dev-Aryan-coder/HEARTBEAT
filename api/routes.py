@@ -226,6 +226,10 @@ Every answer you generate MUST have a clean, readable, professional structure fo
             logger.error(f"Brain execution encountered error, invoking cognitive synthesis shield: {brain_err}")
             from llm.client import _synthesize_local_cognitive_response
             ai_response = _synthesize_local_cognitive_response(messages)
+
+        # 🧠 SYSTEM 2 METACOGNITIVE REFLECTION GATE (Truth Grounding & Quality Audit)
+        from heart.level4_metacognition import metacognitive_reflect
+        ai_response = metacognitive_reflect(ai_response, cleaned_content, bio_facts=cell_context_list)
         
         # 5. Save AI Relational response
         ai_msg_id = str(uuid4())

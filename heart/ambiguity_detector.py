@@ -66,3 +66,28 @@ def detect(text: str, context_messages: List[str]) -> dict:
         "ambiguous_word": "",
         "question": None
     }
+
+# Backward compatibility attributes & interface
+call_llm = None
+
+def detect_ambiguity(target, context_messages: List[str] = None):
+    """Compatible interface accepting BloodCell or text, returning (is_amb, question)."""
+    global call_llm
+    if callable(call_llm):
+        try:
+            import json
+            raw = call_llm("test")
+            data = json.loads(raw) if isinstance(raw, str) else raw
+            return data.get("is_ambiguous", False), data.get("question", "")
+        except Exception:
+            pass
+
+    if hasattr(target, 'user_raw_content'):
+        text = target.user_raw_content
+    elif hasattr(target, 'content'):
+        text = target.content
+    else:
+        text = str(target)
+    
+    res = detect(text, context_messages or [])
+    return res["is_ambiguous"], (res["question"] or "")

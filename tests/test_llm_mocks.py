@@ -5,6 +5,10 @@ from llm.client import call_llm, LLMCallError, LLMTransientError
 @pytest.mark.anyio
 async def test_llm_retry_logic():
     """Test Tenacity exponental backoff (Phase 3.2)."""
+    from llm.client import groq_breaker, openrouter_breaker
+    groq_breaker.reset()
+    openrouter_breaker.reset()
+    
     # Mock config to have a fake API key
     mock_config = MagicMock()
     mock_config.groq_api_key = "fake_test_key"

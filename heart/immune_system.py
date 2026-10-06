@@ -4,28 +4,19 @@ from typing import Tuple
 class ImmuneSystem:
     """The Heartbeat Immune System: Sanitizes raw content before it enters the artery."""
     
-    # 🧬 PROMTP INJECTION PATTERNS
+    # 🧬 ADVERSARIAL PROMPT INJECTION PATTERNS (Precision Guardrails)
     INJECTION_PATTERNS = [
-        # Standard Overrides
-        r"ignore all previous instructions",
-        r"disregard any rules",
-        r"system override",
-        r"bypass safety",
-        r"DAN mode",
-        r"jailbreak",
-        r"you are now an unfiltered",
-        r"act as a",
-        r"pretend you are",
-        r"from now on",
-        # Technical/Encoding Bypass attempts
-        r"encode your response in",
-        r"output in base64",
-        r"hexadecimal format",
-        r"translate to binary",
-        # Latent Space / Roleplay tricks
-        r"stay in character",
-        r"you must not mention",
-        r"as a virtual assistant without limits"
+        # Direct System Overrides & Jailbreaks
+        r"ignore all (?:previous|prior) (?:instructions|rules|prompts)",
+        r"disregard (?:all|any) (?:previous|system) (?:instructions|rules)",
+        r"\bsystem override\b",
+        r"bypass (?:all )?(?:safety|guardrails|filters|content policy)",
+        r"\bDAN\s+mode\b",
+        r"\bjailbreak\b",
+        r"you are now (?:an? )?unfiltered(?: ai)?",
+        r"as a virtual assistant without (?:limits|restrictions|filters)",
+        r"reveal your (?:system prompt|internal instructions|hidden rules)",
+        r"dump your (?:initial prompt|developer instructions)"
     ]
 
     # 🧬 MALICIOUS CODE PATTERNS (Simplistic)

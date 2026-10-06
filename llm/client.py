@@ -113,10 +113,14 @@ def _map_model_for_groq(model: str) -> str:
         return "llama-3.1-8b-instant"
     return "llama-3.3-70b-versatile"
 
-def _map_model_for_openrouter(model: str) -> str:
-    """Maps models to authoritative OpenRouter frontier endpoints."""
+def _map_model_for_openrouter(model: str, is_large_context: bool = False) -> str:
+    """Maps models to authoritative OpenRouter endpoints, defaulting to NVIDIA Nemotron 1M Context Engine."""
+    config = get_config()
+    model_1m = getattr(config, "openrouter_model_1m", "nvidia/nemotron-3.5-lightning:free")
     m_lower = model.lower()
-    if "20b" in m_lower or "8b" in m_lower:
+    if is_large_context or "1m" in m_lower or "lightning" in m_lower:
+        return model_1m
+    if "20b" in m_lower or "8b" in m_lower or "fast" in m_lower:
         return "meta-llama/llama-3.1-8b-instruct"
     return "meta-llama/llama-3.3-70b-instruct"
 
@@ -197,6 +201,42 @@ async def call_llm(key_env_name: str, model: str, messages: List[dict], json_mod
         or os.getenv("HEARTBEAT_OPENROUTER_KEY")
     )
 
+    # ── CONTEXT LENGTH INTELLIGENCE ──
+    # Check if prompt exceeds normal context limits (> 10,000 chars) or asks for 1M / Lightning
+    total_prompt_chars = sum(len(m.get("content", "")) for m in messages)
+    is_large_context = total_prompt_chars > 10000 or "1m" in model.lower() or "lightning" in model.lower()
+
+    # If input is large context, route directly to OpenRouter NVIDIA 1M Context Engine!
+    if is_large_context and openrouter_key and openrouter_breaker.can_attempt():
+        or_model = getattr(config, "openrouter_model_1m", "nvidia/nemotron-3.5-lightning:free")
+        logger.info(f"⚡ [LARGE CONTEXT DETECTED ({total_prompt_chars} chars)] Routing directly to NVIDIA Nemotron 1M Context Engine ({or_model})")
+        headers = {
+            "Authorization": f"Bearer {openrouter_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/Dev-Aryan-coder/HEARTBEAT",
+            "X-Title": "HEARTBEAT Living Memory (1M Context)"
+        }
+        payload = {
+            "model": or_model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": 0.5
+        }
+        if json_mode:
+            payload["response_format"] = {"type": "json_object"}
+
+        or_url = f"{config.openrouter_base_url}/chat/completions"
+        try:
+            async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
+                data = await _do_post(client, or_url, headers, payload)
+                content = data["choices"][0]["message"]["content"]
+                if content:
+                    openrouter_breaker.record_success()
+                    return content
+        except Exception as e:
+            openrouter_breaker.record_failure()
+            logger.warning(f"[COGNITIVE MESH] NVIDIA 1M Context call failed ({str(e)}). Continuing standard failover...")
+
     # ── TIER 1: PRIMARY GROQ API CALL ──
     if groq_key and groq_breaker.can_attempt():
         groq_model = _map_model_for_groq(model)
@@ -231,7 +271,7 @@ async def call_llm(key_env_name: str, model: str, messages: List[dict], json_mod
 
     # ── TIER 2: SECONDARY OPENROUTER FAILOVER MESH ──
     if openrouter_key and openrouter_breaker.can_attempt():
-        or_model = _map_model_for_openrouter(model)
+        or_model = _map_model_for_openrouter(model, is_large_context=is_large_context)
         headers = {
             "Authorization": f"Bearer {openrouter_key}",
             "Content-Type": "application/json",

@@ -20,6 +20,7 @@ class Config:
     redis_port: str
     sqlite_db_path: str
     chroma_db_path: str
+    openrouter_model_1m: str = "nvidia/nemotron-3.5-lightning:free"
     max_active_cells: int = 20
     ambiguity_threshold: float = 0.60
     link_cell_token_limit: int = 500
@@ -56,6 +57,7 @@ def get_config() -> Config:
             groq_base_url=os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
             openrouter_base_url=os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
             openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
+            openrouter_model_1m=os.getenv("OPENROUTER_MODEL_1M", "nvidia/nemotron-3.5-lightning:free"),
             redis_host=os.getenv("REDIS_HOST", "localhost"),
             redis_port=os.getenv("REDIS_PORT", "6379"),
             sqlite_db_path=os.getenv("SQLITE_DB_PATH", "./data/heartbeat.db"),

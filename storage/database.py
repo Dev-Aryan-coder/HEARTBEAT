@@ -88,6 +88,8 @@ def ensure_user(user_id: str) -> None:
 
 def save_message(msg_id: str, chat_id: str, user_id: str, role: str, content: str, image_url: Optional[str] = None) -> None:
     """Saves a message — Note: Caller should handle transaction if calling multiple DB functions."""
+    ensure_user(user_id)
+    create_chat(chat_id, user_id, "New Chat")
     conn = get_connection()
     timestamp = datetime.utcnow().isoformat()
     conn.execute("""
@@ -127,8 +129,8 @@ def save_cell(cell: BloodCell) -> None:
             importance_score, keywords, topic_id, summary, 
             is_ambiguous, clarification_question, 
             expires_at, last_activated_at, activation_count, 
-            created_at, purified_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            created_at, purified_at, memory_tier, superseded_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         cell_dict['cell_id'], cell_dict['user_id'], cell_dict['chat_id'], cell_dict['message_id'], cell_dict.get('session_id', 'unknown'),
         cell_dict['status'], cell_dict['cell_type'], cell_dict['user_raw_content'], cell_dict['user_content'],
@@ -137,7 +139,9 @@ def save_cell(cell: BloodCell) -> None:
         cell_dict['importance_score'], cell_dict['keywords'], cell_dict['topic_id'], cell_dict['summary'],
         cell_dict['is_ambiguous'], cell_dict['clarification_question'], 
         cell_dict['expires_at'], cell_dict['last_activated_at'], cell_dict['activation_count'],
-        cell_dict['created_at'], cell_dict['purified_at']
+        cell_dict['created_at'], cell_dict['purified_at'],
+        cell_dict['memory_tier'].value if hasattr(cell_dict.get('memory_tier'), 'value') else str(cell_dict.get('memory_tier', 'episodic')).replace("MemoryTier.", ""),
+        cell_dict.get('superseded_by')
     ))
     conn.commit()
 
@@ -185,6 +189,59 @@ def update_cell_status(cell_id: str, status: str) -> None:
     cursor.execute("UPDATE blood_cells SET status = ? WHERE cell_id = ?", (status, cell_id))
     conn.commit()
 
+def delete_cell(cell_id: str) -> bool:
+    """Permanently prunes a cell from biological memory (Radical Transparency)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM link_vault WHERE cell_id = ?", (cell_id,))
+    cursor.execute("DELETE FROM blood_cells WHERE cell_id = ?", (cell_id,))
+    conn.commit()
+    return cursor.rowcount > 0
+
+def update_cell_tier(cell_id: str, memory_tier: str) -> bool:
+    """Updates the biological tier (bloodstream, episodic, core_genome)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE blood_cells SET memory_tier = ? WHERE cell_id = ?", (memory_tier, cell_id))
+    conn.commit()
+    return cursor.rowcount > 0
+
+def supersede_cell(old_cell_id: str, new_cell_id: str) -> bool:
+    """Marks an older cell as superseded by a newer truth (State Supremacy)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE blood_cells 
+        SET status = 'expired', superseded_by = ? 
+        WHERE cell_id = ?
+    """, (new_cell_id, old_cell_id))
+    conn.commit()
+    return cursor.rowcount > 0
+
+def decay_cell_importance(cell_id: str, decay_amount: int = 1) -> Optional[int]:
+    """Applies metabolic decay to a cell's importance score."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT importance_score, memory_tier FROM blood_cells WHERE cell_id = ?", (cell_id,))
+    row = cursor.fetchone()
+    if not row:
+        return None
+    # Core genome cells are immune to decay
+    if row['memory_tier'] in ('core_genome', 'MemoryTier.core_genome'):
+        return row['importance_score']
+    
+    current_score = row['importance_score'] or 5
+    new_score = max(1, current_score - decay_amount)
+    new_status = 'dormant' if new_score <= 2 else 'active'
+    
+    cursor.execute("""
+        UPDATE blood_cells 
+        SET importance_score = ?, status = ? 
+        WHERE cell_id = ?
+    """, (new_score, new_status, cell_id))
+    conn.commit()
+    return new_score
+
 def create_chat(chat_id: str, user_id: str, title: str) -> None:
     # ISSUE 6.2 FIX: Ensure user exists first (Foreign Key)
     ensure_user(user_id)
@@ -208,14 +265,25 @@ def get_chats_by_user(user_id: str) -> List[dict]:
     rows = cursor.fetchall()
     return [dict(row) for row in rows]
 
-def save_link_vault_entry(link_id: str, cell_id: str, content_type: str, full_content: str, part_num: int, total_parts: int) -> None:
+def save_link_vault_entry(link_id: str, cell_id: str, content_type: str, full_content: str, part_num: int, total_parts: int, user_id: str = "MASTER_USER") -> None:
     conn = get_connection()
     cursor = conn.cursor()
     now = datetime.utcnow().isoformat()
-    cursor.execute("""
-        INSERT OR REPLACE INTO link_vault (link_id, cell_id, content_type, full_content, part_number, total_parts, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (link_id, cell_id, content_type, full_content, part_num, total_parts, now))
+    cols = [c[1] for c in cursor.execute("PRAGMA table_info(link_vault)").fetchall()]
+    
+    insert_cols = ["link_id", "cell_id", "content_type", "full_content", "part_number", "total_parts", "created_at"]
+    insert_vals = [link_id, cell_id, content_type, full_content, part_num, total_parts, now]
+    
+    if "url" in cols:
+        insert_cols.append("url")
+        insert_vals.append(f"vault://{link_id}")
+    if "user_id" in cols:
+        insert_cols.append("user_id")
+        insert_vals.append(user_id)
+        
+    placeholders = ", ".join(["?"] * len(insert_cols))
+    col_str = ", ".join(insert_cols)
+    cursor.execute(f"INSERT OR REPLACE INTO link_vault ({col_str}) VALUES ({placeholders})", tuple(insert_vals))
     conn.commit()
 
 def get_global_user_history(user_id: str, limit: int = 30) -> List[dict]:

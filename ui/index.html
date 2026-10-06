@@ -176,15 +176,41 @@
       </div>
     </main>
 
-    <!-- ── RIGHT CELLS PANEL ── -->
+    <!-- ── RIGHT CELLS PANEL (LIVING BRAIN & METABOLISM) ── -->
     <aside class="cells-panel" id="cells-panel">
       <div class="cells-header">
         <div class="cells-header-left">
-          <span class="cells-title">Active Cells</span>
-          <span class="cells-pulse" id="cells-pulse"></span>
+          <span class="cells-title">Biological Memory</span>
+          <span class="cells-pulse" id="cells-pulse" title="Living metabolic heart rhythm"></span>
         </div>
         <button type="button" class="cells-close-btn" id="cells-close-btn" title="Close cells panel">✕</button>
       </div>
+
+      <!-- Vital Signs Telemetry Strip -->
+      <div class="telemetry-strip" id="telemetry-strip">
+        <div class="vital-item">
+          <span class="vital-icon">❤️</span>
+          <span class="vital-val" id="telemetry-bpm">72</span>
+          <span class="vital-lbl">BPM</span>
+        </div>
+        <div class="vital-item">
+          <span class="vital-icon">🩸</span>
+          <span class="vital-val" id="telemetry-flow">0</span>
+          <span class="vital-lbl">Flowing</span>
+        </div>
+        <button type="button" class="pulse-trigger-btn" id="pulse-trigger-btn" title="Run Metabolic Cycle">
+          ⚡ Pulse
+        </button>
+      </div>
+
+      <!-- Memory Tier Filters -->
+      <div class="tier-filter-bar" id="tier-filter-bar">
+        <button type="button" class="tier-tab-btn active" data-tier="all">All</button>
+        <button type="button" class="tier-tab-btn" data-tier="core_genome">🧬 Core</button>
+        <button type="button" class="tier-tab-btn" data-tier="active">🩸 Active</button>
+        <button type="button" class="tier-tab-btn" data-tier="dormant">🦴 Bones</button>
+      </div>
+
       <div class="cells-list" id="cells-list">
         <div class="cells-empty">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"

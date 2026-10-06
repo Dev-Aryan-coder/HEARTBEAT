@@ -16,12 +16,14 @@ from heartbeat.config import get_config
 from storage.database import (
     save_message, get_messages_by_chat, get_cells_by_user, 
     get_connection, create_chat, get_chats_by_user,
-    get_cell_by_id, update_cell_status, get_global_user_history
+    get_cell_by_id, update_cell_status, get_global_user_history,
+    delete_cell, update_cell_tier
 )
-from cells.cell_model import CellFactory, BloodCell, CellType, CellStatus
+from cells.cell_model import CellFactory, BloodCell, CellType, CellStatus, MemoryTier
 from circulation.artery_queue import push_cell
 from llm.client import call_brain
 from heart.pipeline import run_pipeline
+from heart.metabolism import run_metabolic_cycle
 from api.websocket import monitor
 from heart.immune_system import scan_content
 from storage.database_ops import get_semantic_memory, persist_purified_cell
@@ -335,6 +337,56 @@ async def expire_cell(cell_id: str):
     update_cell_status(cell_id, "expired")
     return {"success": True, "cell_id": cell_id}
 
+@router.delete("/api/cells/{cell_id}")
+async def prune_cell(cell_id: str):
+    """Permanently prunes a memory cell (Radical Transparency)."""
+    success = delete_cell(cell_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Cell not found")
+    await monitor.broadcast_cell_event("MASTER_USER", {
+        "type": "CELL_PRUNED",
+        "summary": f"Cell {cell_id} manually pruned from biological memory.",
+        "cell_id": cell_id
+    })
+    return {"success": True, "cell_id": cell_id}
+
+@router.patch("/api/cells/{cell_id}")
+async def patch_cell(cell_id: str, payload: dict):
+    """Updates a cell's tier or status."""
+    tier = payload.get("memory_tier")
+    if tier:
+        update_cell_tier(cell_id, tier)
+    status = payload.get("status")
+    if status:
+        update_cell_status(cell_id, status)
+    return {"success": True, "cell_id": cell_id}
+
+@router.post("/api/metabolism/pulse")
+async def trigger_metabolic_pulse(user_id: Optional[str] = "MASTER_USER"):
+    """Triggers an on-demand biological metabolic cycle."""
+    telemetry = await run_metabolic_cycle(user_id)
+    return {"success": True, "telemetry": telemetry}
+
+@router.get("/api/metabolism/telemetry/{user_id}")
+async def get_metabolic_telemetry(user_id: str):
+    """Fetches real-time biological vital signs and cell distribution."""
+    conn = get_connection()
+    uid = _normalize_user_id(user_id)
+    total_cells = conn.execute("SELECT COUNT(*) FROM blood_cells WHERE user_id=? COLLATE NOCASE", (uid,)).fetchone()[0]
+    active_cells = conn.execute("SELECT COUNT(*) FROM blood_cells WHERE user_id=? COLLATE NOCASE AND status='active'", (uid,)).fetchone()[0]
+    core_cells = conn.execute("SELECT COUNT(*) FROM blood_cells WHERE user_id=? COLLATE NOCASE AND memory_tier='core_genome'", (uid,)).fetchone()[0]
+    dormant_cells = conn.execute("SELECT COUNT(*) FROM blood_cells WHERE user_id=? COLLATE NOCASE AND status='dormant'", (uid,)).fetchone()[0]
+    heart_rate = 72 + min(28, active_cells * 2)
+    return {
+        "heart_rate_bpm": heart_rate,
+        "blood_pressure": "120/80 (Optimal)" if active_cells < 25 else "135/88 (Elevated Flow)",
+        "circulating_active": active_cells,
+        "core_genome_dna": core_cells,
+        "dormant_in_bones": dormant_cells,
+        "total_cells": total_cells,
+        "status": "living_homeostasis"
+    }
+
 @router.get("/api/history/{chat_id}")
 async def get_history(chat_id: str, limit: int = 100, offset: int = 0):
     # ISSUE 15.1 FIX: Add pagination
@@ -383,6 +435,7 @@ async def get_stats(user_id: str):
     try:
         total_cells = conn.execute("SELECT COUNT(*) FROM blood_cells WHERE user_id=? COLLATE NOCASE", (uid,)).fetchone()[0]
         active_cells = conn.execute("SELECT COUNT(*) FROM blood_cells WHERE user_id=? COLLATE NOCASE AND status='active'", (uid,)).fetchone()[0]
+        core_cells = conn.execute("SELECT COUNT(*) FROM blood_cells WHERE user_id=? COLLATE NOCASE AND memory_tier='core_genome'", (uid,)).fetchone()[0]
         dormant_cells = conn.execute("SELECT COUNT(*) FROM blood_cells WHERE user_id=? COLLATE NOCASE AND status='dormant'", (uid,)).fetchone()[0]
         expired_cells = conn.execute("SELECT COUNT(*) FROM blood_cells WHERE user_id=? COLLATE NOCASE AND status='expired'", (uid,)).fetchone()[0]
         pending_cells = conn.execute("SELECT COUNT(*) FROM blood_cells WHERE user_id=? COLLATE NOCASE AND status='pending_clarification'", (uid,)).fetchone()[0]
@@ -394,6 +447,7 @@ async def get_stats(user_id: str):
         return {
             "total_cells": total_cells,
             "active_cells": active_cells,
+            "core_cells": core_cells,
             "dormant_cells": dormant_cells,
             "expired_cells": expired_cells,
             "pending_cells": pending_cells,

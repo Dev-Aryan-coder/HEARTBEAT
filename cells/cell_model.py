@@ -14,6 +14,11 @@ class CellType(str, Enum):
     raw = "raw"
     purified = "purified"
 
+class MemoryTier(str, Enum):
+    bloodstream = "bloodstream"  # Working memory (circulating actively in bloodstream)
+    episodic = "episodic"        # Project/session context (standard metabolic decay)
+    core_genome = "core_genome"  # Permanent user identity & core DNA (immune to decay)
+
 class CellStatus(str, Enum):
     pending_purification = "pending_purification"
     pending_clarification = "pending_clarification"
@@ -31,6 +36,8 @@ class BloodCell(BaseModel):
     cell_id: str = Field(default_factory=lambda: str(uuid4()))
     cell_type: CellType
     status: CellStatus
+    memory_tier: MemoryTier = MemoryTier.episodic
+    superseded_by: Optional[str] = None
 
     # ORIGIN FIELDS
     user_id: str

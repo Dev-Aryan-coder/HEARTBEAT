@@ -27,6 +27,13 @@ async def process_answer_request(req: AnswerRequest):
         cell = BloodCell(**cell_data)
 
     # 3. Route to the correct intelligence level
+    # Check if this is a Chain Cell requesting raw/original depth
+    if req.depth_level == 3 and getattr(cell, 'is_chain', False) and getattr(cell, 'chain_id', None):
+        from cells.chain_engine import reassemble_chain_content
+        full_reassembled = reassemble_chain_content(cell.chain_id)
+        if full_reassembled:
+            return {"response": full_reassembled, "is_chain_reassembled": True}
+
     # Map depth_level to keywords for the router
     effective_msg = req.message or ""
     if req.depth_level == 3: effective_msg += " raw source original"

@@ -98,7 +98,9 @@ def run_migrations(conn: sqlite3.Connection) -> None:
         ("ai_raw_response", "TEXT"),
         ("user_content_type", "TEXT"),
         ("analysis_status", "TEXT"),
-        ("clarification_answer", "TEXT")
+        ("clarification_answer", "TEXT"),
+        ("memory_tier", "TEXT DEFAULT 'episodic'"),
+        ("superseded_by", "TEXT")
     ]
     for col, ctype in cols:
         try:
@@ -120,6 +122,21 @@ def run_migrations(conn: sqlite3.Connection) -> None:
             FOREIGN KEY (cell_id) REFERENCES blood_cells (cell_id)
         )
     """)
+    
+    # Safe ALTERs for link_vault
+    lv_cols = [
+        ("link_id", "TEXT"),
+        ("content_type", "TEXT"),
+        ("full_content", "TEXT"),
+        ("part_number", "INTEGER"),
+        ("total_parts", "INTEGER"),
+        ("created_at", "TEXT")
+    ]
+    for col, ctype in lv_cols:
+        try:
+            cursor.execute(f"ALTER TABLE link_vault ADD COLUMN {col} {ctype}")
+        except sqlite3.OperationalError:
+            pass
     
     conn.commit()
 

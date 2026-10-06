@@ -533,32 +533,117 @@ function formatTime(ts) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// ── CELLS REFRESH ─────────────────────────────────────────────────────────────
+// ── CELLS REFRESH & LIVING METABOLISM ─────────────────────────────────────────
+let currentTierFilter = 'all';
+let cachedCells = [];
+
 async function refreshCells() {
   try {
-    const res = await fetch(`${API_BASE}/api/cells/${window.userId}`);
-    const data = await res.json();
-    renderCells(data.cells || []);
-  } catch (e) { }
+    const [cellsRes, telemetryRes] = await Promise.all([
+      fetch(`${API_BASE}/api/cells/${window.userId}`),
+      fetch(`${API_BASE}/api/metabolism/telemetry/${window.userId}`).catch(() => null)
+    ]);
+    
+    if (cellsRes.ok) {
+      const data = await cellsRes.json();
+      cachedCells = data.cells || [];
+      renderCells(cachedCells);
+    }
+    
+    if (telemetryRes && telemetryRes.ok) {
+      const tData = await telemetryRes.json();
+      updateTelemetryUI(tData);
+    }
+  } catch (e) {
+    console.debug('Cell refresh skipped:', e);
+  }
+}
+
+function updateTelemetryUI(tData) {
+  const bpmEl = document.getElementById('telemetry-bpm');
+  const flowEl = document.getElementById('telemetry-flow');
+  if (bpmEl && tData.heart_rate_bpm) bpmEl.textContent = tData.heart_rate_bpm;
+  if (flowEl && tData.circulating_active != null) flowEl.textContent = tData.circulating_active;
 }
 
 function renderCells(cells) {
   if (!cellsListEl) return;
-  const active = cells.filter(c => c.status === 'active');
-  if (active.length === 0) {
-    cellsListEl.innerHTML = '<div class="cells-empty">No active cells</div>';
+  
+  let filtered = cells;
+  if (currentTierFilter === 'core_genome') {
+    filtered = cells.filter(c => c.memory_tier === 'core_genome');
+  } else if (currentTierFilter === 'active') {
+    filtered = cells.filter(c => c.status === 'active' && c.memory_tier !== 'core_genome');
+  } else if (currentTierFilter === 'dormant') {
+    filtered = cells.filter(c => c.status === 'dormant');
+  } else {
+    // 'all' shows non-expired cells
+    filtered = cells.filter(c => c.status !== 'expired');
+  }
+
+  if (filtered.length === 0) {
+    cellsListEl.innerHTML = `<div class="cells-empty"><p>No cells in ${currentTierFilter} tier</p></div>`;
     return;
   }
-  cellsListEl.innerHTML = active.map(c => `
-        <div class="cell-card">
-            <div class="cell-card-top">
-                <span class="cell-topic topic-${c.topic_id || 'general'}">${c.topic_id || 'general'}</span>
-                <span class="cell-score">${c.importance_score != null ? c.importance_score + '/10' : '—'}</span>
-            </div>
-            <div class="cell-summary">${escHtml(c.summary || c.user_content || 'Cell memory')}</div>
-        </div>
-    `).join('');
+
+  cellsListEl.innerHTML = filtered.map(c => {
+    const tier = c.memory_tier || (c.importance_score >= 8 ? 'core_genome' : 'episodic');
+    const tierLabel = tier === 'core_genome' ? '🧬 Core' : (tier === 'bloodstream' ? '🩸 Flow' : '⚡ Context');
+    return `
+      <div class="cell-card" id="cell-card-${c.cell_id}">
+          <div class="cell-card-top">
+              <span class="cell-topic topic-${c.topic_id || 'general'}">${c.topic_id || 'general'}</span>
+              <span class="cell-tier-badge tier-${tier}">${tierLabel}</span>
+              <span class="cell-score">${c.importance_score != null ? c.importance_score + '/10' : '—'}</span>
+          </div>
+          <div class="cell-summary">${escHtml(c.summary || c.user_content || 'Cell memory')}</div>
+          <div class="cell-card-footer">
+              <span class="cell-status-tag" style="font-size:10px;color:var(--muted-foreground)">${c.status}</span>
+              <button type="button" class="cell-prune-btn" onclick="pruneCell('${c.cell_id}')" title="Dissolve cell from memory">
+                  🗑️ Dissolve
+              </button>
+          </div>
+      </div>
+    `;
+  }).join('');
 }
+
+window.pruneCell = async function(cellId) {
+  if (!confirm('Dissolve this memory cell permanently from HEARTBEAT subconscious?')) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/cells/${cellId}`, { method: 'DELETE' });
+    if (res.ok) {
+      const el = document.getElementById(`cell-card-${cellId}`);
+      if (el) el.remove();
+      refreshCells();
+    }
+  } catch (err) {
+    console.error('Failed to prune cell:', err);
+  }
+};
+
+window.triggerMetabolicPulse = async function() {
+  const btn = document.getElementById('pulse-trigger-btn');
+  if (btn) {
+    btn.textContent = '⏳ Pulsing...';
+    btn.disabled = true;
+  }
+  try {
+    const res = await fetch(`${API_BASE}/api/metabolism/pulse`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.telemetry) updateTelemetryUI(data.telemetry);
+      refreshCells();
+    }
+  } catch (err) {
+    console.error('Pulse failed:', err);
+  } finally {
+    if (btn) {
+      btn.textContent = '⚡ Pulse';
+      btn.disabled = false;
+    }
+  }
+};
 
 // ── EVENTS ────────────────────────────────────────────────────────────────────
 const layoutEl = document.getElementById('layout') || document.querySelector('.layout');
@@ -588,6 +673,21 @@ if (cellsToggleBtn) {
 if (cellsCloseBtn) {
   cellsCloseBtn.onclick = toggleCellsPanel;
 }
+
+const pulseTriggerBtn = document.getElementById('pulse-trigger-btn');
+if (pulseTriggerBtn) {
+  pulseTriggerBtn.onclick = window.triggerMetabolicPulse;
+}
+
+const tierTabs = document.querySelectorAll('.tier-tab-btn');
+tierTabs.forEach(tab => {
+  tab.onclick = () => {
+    tierTabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentTierFilter = tab.dataset.tier || 'all';
+    renderCells(cachedCells);
+  };
+});
 
 if (userInputEl) {
   userInputEl.oninput = () => {

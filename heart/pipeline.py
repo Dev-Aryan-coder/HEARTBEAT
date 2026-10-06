@@ -2,9 +2,9 @@ import logging
 import asyncio
 from datetime import datetime
 from typing import List, Optional
-from cells.cell_model import BloodCell, CellStatus, CellType
+from cells.cell_model import BloodCell, CellStatus, CellType, MemoryTier
 from heart import level1_sieve, level2_valve, level3_purifier
-from storage.database import get_cells_by_user, update_cell_status, save_link_vault_entry
+from storage.database import get_cells_by_user, update_cell_status, save_link_vault_entry, supersede_cell
 from api.websocket import monitor
 
 # Configure logging
@@ -82,26 +82,35 @@ async def run_pipeline(raw_cell: BloodCell, context_messages: List[str] = [], pr
         raw_cell.summary = purify_res.summary
         raw_cell.expires_at = purify_res.expires_at
         
+        # 🧬 3-TIER BIOLOGICAL MEMORY CLASSIFICATION
+        if (raw_cell.importance_score or 5) >= 8:
+            raw_cell.memory_tier = MemoryTier.core_genome  # Permanent identity (immune to decay)
+        elif (raw_cell.importance_score or 5) <= 4:
+            raw_cell.memory_tier = MemoryTier.bloodstream    # Fast working memory
+        else:
+            raw_cell.memory_tier = MemoryTier.episodic       # Standard project/context memory
+        
         # 🔗 LINK CELL LOGIC
         if purify_res.link_id:
             logger.info(f"Link Detected [Cell: {raw_cell.cell_id}]: ID={purify_res.link_id}")
             save_link_vault_entry(purify_res.link_id, raw_cell.cell_id, "text", ai_response or "", 1, 1)
             raw_cell.link_id = purify_res.link_id
 
-        # 🧪 PRESSURE LOGIC: Fact Supremacy
-        # Expire older cells that share same topic or core keywords
+        # 🧪 PRESSURE LOGIC: Fact Supremacy (Living Truth Resolution)
+        # Supersede older active cells that share same topic or core keywords
         try:
             active_cells = get_cells_by_user(raw_cell.user_id, status="active")
             for old_c in active_cells:
-                # Same topic collision check
-                if old_c.get("topic_id") == raw_cell.topic_id:
-                    logger.info(f"FACT SUPREMACY: Expiring old cell {old_c['cell_id']} for topic collision: {raw_cell.topic_id}")
-                    update_cell_status(old_c["cell_id"], "expired")
+                # Same topic collision check (avoid self)
+                if old_c.get("cell_id") != raw_cell.cell_id and old_c.get("topic_id") == raw_cell.topic_id:
+                    logger.info(f"FACT SUPREMACY: Superseding old cell {old_c['cell_id']} with new truth {raw_cell.cell_id}")
+                    supersede_cell(old_c["cell_id"], raw_cell.cell_id)
                     # Broadcast to dashboard
                     await monitor.broadcast_cell_event(raw_cell.user_id, {
                         "type": "FACT_SUPREMACY",
-                        "summary": f"Overwriting outdated memory for topic: {raw_cell.topic_id}",
-                        "cell_id": old_c["cell_id"]
+                        "summary": f"Overwriting outdated memory for topic '{raw_cell.topic_id}' with new truth.",
+                        "old_cell_id": old_c["cell_id"],
+                        "new_cell_id": raw_cell.cell_id
                     })
         except Exception as e:
             logger.error(f"Pressure logic error: {str(e)}")

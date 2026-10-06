@@ -1,0 +1,164 @@
+{
+  "timestamp": "2026-04-05T14:25:36.059814",
+  "score": 84,
+  "passed": 26,
+  "failed": 0,
+  "warned": 5,
+  "results": [
+    {
+      "label": "Server running on port 8000",
+      "status": "PASS",
+      "detail": "Response: {'status': 'ok', 'service': 'HEARTBEAT', 'version': '4.0.1 (Subconscious Enabled)'}"
+    },
+    {
+      "label": "Message sent via API (4838ms)",
+      "status": "PASS",
+      "detail": "AI Response: 'Aryan, I remember this about you. You've mentioned before th...'"
+    },
+    {
+      "label": "L1 Sieve \u2014 noise removal",
+      "status": "PASS",
+      "detail": "Cleaned: 'I am a BSc IT student from Mumbai and I love Python programm...' | Removed: ''"
+    },
+    {
+      "label": "L2 Valve \u2014 classification",
+      "status": "WARN",
+      "detail": "Ambiguous: expected False got True"
+    },
+    {
+      "label": "L3 Purifier \u2014 extraction",
+      "status": "PASS",
+      "detail": "Score: 8/10 \u2713 | Keywords: ['Python', 'BSc IT', 'Mumbai'] \u2713 | Topic: user_pref_python \u2713 | Summary: 'The user is a BSc IT student from Mumbai with a st...' \u2713 | Cleaned: 'BSc IT student from Mumbai who loves Python progra...' \u2713"
+    },
+    {
+      "label": "Message sent via API (5723ms)",
+      "status": "PASS",
+      "detail": "AI Response: 'We've already exchanged greetings. You're a BSc IT student f...'"
+    },
+    {
+      "label": "L1 Sieve \u2014 noise removal",
+      "status": "PASS",
+      "detail": "Cleaned: '...' | Removed: 'Hello'"
+    },
+    {
+      "label": "Message sent via API (2452ms)",
+      "status": "PASS",
+      "detail": "AI Response: 'Aryan, I remember this about you. You've mentioned before th...'"
+    },
+    {
+      "label": "L1 Sieve \u2014 noise removal",
+      "status": "PASS",
+      "detail": "Cleaned: 'I really love Apple products and use them daily...' | Removed: ''"
+    },
+    {
+      "label": "L2 Valve \u2014 classification",
+      "status": "PASS",
+      "detail": "Intent: permanent_fact | Ambiguous: True | Splits: 1"
+    },
+    {
+      "label": "L3 Purifier \u2014 extraction",
+      "status": "PASS",
+      "detail": "Score: 8/10 \u2713 | Keywords: ['Apple', 'products', 'daily usage'] \u2713 | Topic: user_pref_apple \u2713 | Summary: 'The user expressed their affection for Apple produ...' \u2713 | Cleaned: 'User expressed love for Apple products and daily u...' \u2713"
+    },
+    {
+      "label": "Message sent via API (2903ms)",
+      "status": "PASS",
+      "detail": "AI Response: 'Aryan, I've heard that before. You've consistently expressed...'"
+    },
+    {
+      "label": "L1 Sieve \u2014 noise removal",
+      "status": "PASS",
+      "detail": "Cleaned: 'I think Python is good...' | Removed: 'Um so yeah basically I think Python is g'"
+    },
+    {
+      "label": "L2 Valve \u2014 classification",
+      "status": "WARN",
+      "detail": "Ambiguous: expected False got True"
+    },
+    {
+      "label": "L3 Purifier \u2014 extraction",
+      "status": "PASS",
+      "detail": "Score: 8/10 \u2713 | Keywords: ['Python', 'programming', 'language'] \u2713 | Topic: user_pref_python \u2713 | Summary: 'The user expressed a positive sentiment towards Py...' \u2713 | Cleaned: 'I think Python is good...' \u2713"
+    },
+    {
+      "label": "Message sent via API (5562ms)",
+      "status": "PASS",
+      "detail": "AI Response: 'Aryan, I recall that you previously asked me to build a webs...'"
+    },
+    {
+      "label": "L1 Sieve \u2014 noise removal",
+      "status": "PASS",
+      "detail": "Cleaned: 'Build me a website and also suggest marketing strategies...' | Removed: ''"
+    },
+    {
+      "label": "L2 Valve \u2014 classification",
+      "status": "WARN",
+      "detail": "Intent: expected 'command' got 'permanent_fact'"
+    },
+    {
+      "label": "L3 Purifier \u2014 extraction",
+      "status": "PASS",
+      "detail": "Score: 8/10 \u2713 | Keywords: ['website', 'marketing', 'strategies'] \u2713 | Topic: user_request_website_dev \u2713 | Summary: 'The user requests assistance with building a websi...' \u2713 | Cleaned: 'Build a website and suggest marketing strategies...' \u2713"
+    },
+    {
+      "label": "Message sent via API (8513ms)",
+      "status": "PASS",
+      "detail": "AI Response: 'Aryan, I remember this about you. You're the creator of the ...'"
+    },
+    {
+      "label": "L1 Sieve \u2014 noise removal",
+      "status": "PASS",
+      "detail": "Cleaned: 'My name is Aryan and I am building the HEARTBEAT AI memory s...' | Removed: ''"
+    },
+    {
+      "label": "L2 Valve \u2014 classification",
+      "status": "PASS",
+      "detail": "Intent: permanent_fact | Ambiguous: False | Splits: 2"
+    },
+    {
+      "label": "L3 Purifier \u2014 extraction",
+      "status": "PASS",
+      "detail": "Score: 8/10 \u2713 | Keywords: ['HEARTBEAT AI', 'memory system', 'Aryan'] \u2713 | Topic: heartbeat_ai_memory \u2713 | Summary: 'Aryan is developing the HEARTBEAT AI memory system...' \u2713 | Cleaned: 'Aryan is building the HEARTBEAT AI memory system...' \u2713"
+    },
+    {
+      "label": "Cells saved to SQLite",
+      "status": "PASS",
+      "detail": "Total cells: 9 | Active: 7"
+    },
+    {
+      "label": "Specific cell in SQLite (32014d91...)",
+      "status": "PASS",
+      "detail": "Status: active | Topic: user_identification | Score: 2 | Summary: The user introduced themselves as Aryan, and the A"
+    },
+    {
+      "label": "Vectors saved to ChromaDB",
+      "status": "PASS",
+      "detail": "Total vectors in ChromaDB: 19"
+    },
+    {
+      "label": "Specific cell in ChromaDB (32014d91...)",
+      "status": "WARN",
+      "detail": "Cell 32014d91-e3d7-430a-8a3b-55f1244662f5 not in ChromaDB"
+    },
+    {
+      "label": "Messages saved to SQLite display layer",
+      "status": "PASS",
+      "detail": "Messages saved: 12 total | User: 6 | AI: 6"
+    },
+    {
+      "label": "AI recalls memory across different chats",
+      "status": "PASS",
+      "detail": "AI correctly recalled 'Rust' across sessions. Response: 'aryan, i recall that your favorite programming language is definitely rust. howe...'"
+    },
+    {
+      "label": "Stats endpoint returns correct data",
+      "status": "PASS",
+      "detail": "Total cells: 11 | Active: 7 | Messages: 36 | Avg importance: 5.3"
+    },
+    {
+      "label": "3-level answers (Quick/Detail/Original)",
+      "status": "WARN",
+      "detail": "L1: HTTP 500 \u2717 | L2: HTTP 500 \u2717 | L3: HTTP 500 \u2717"
+    }
+  ]
+}

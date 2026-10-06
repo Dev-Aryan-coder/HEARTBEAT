@@ -1,0 +1,16 @@
+# Heartbeat Project Dependencies
+fastapi
+uvicorn
+streamlit
+pydantic
+sqlalchemy
+aioredis
+spacy
+sentence-transformers
+pytesseract
+pillow
+chromadb
+openai
+python-dotenv
+pytest
+httpx

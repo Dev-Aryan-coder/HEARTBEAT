@@ -1,0 +1,833 @@
+HEARTBEAT
+
+Biological AI Memory Layer
+
+Full Technical Blueprint  |  Version 2.0  |  March 2026
+
+Confidential  —  Original Idea by Creator
+
+Moving AI from a Static Library to a Living Circulatory System
+
+The first AI memory architecture that eliminates the search step entirely
+
+1. Core Concept
+
+HEARTBEAT is a Biological State Engine (BSE) — a middleware layer that sits between a user and any AI model. Instead of storing raw chat logs and searching through them (what every existing AI does today), HEARTBEAT converts every piece of information into a small, smart, self-contained unit called a Blood Cell. These cells are purified, scored, and circulated across all chat sessions continuously so the AI never has to search. It simply receives what is already flowing past it.
+
+The central insight: the human circulatory system never searches for nutrients. Nutrients are already flowing through the blood and arrive where they are needed automatically. HEARTBEAT applies this biology to AI memory — making relevant information always available without any retrieval step.
+
+The Problem HEARTBEAT Solves
+
+Problem in current AI
+
+How HEARTBEAT solves it
+
+Context window limit — old messages forgotten
+
+Cells capture meaning before it falls outside the window
+
+Quadratic compute cost with long context
+
+Only 5-20 active cells at any time — 90% dormant
+
+Cross-session memory is fake (text injection)
+
+Cells tied to user_id flow across all sessions permanently
+
+Silo problem — Chat A cannot see Chat B
+
+Nervous System circulates cells to all chats simultaneously
+
+RAG retrieval misses relevant content
+
+No retrieval — cells are already flowing when needed
+
+Long answers get cut off at output token limit
+
+Link Cell system stores big content in vault with pointer
+
+2. System Anatomy — The Body
+
+Every component of HEARTBEAT maps to a biological organ. This is not just analogy — it is the design philosophy. Each organ has one job and one job only.
+
+2.1 The Blood Cell — Data Unit
+
+The Blood Cell is the fundamental unit of HEARTBEAT. Every message a user types is never stored as raw text inside the system. Instead it is converted into one or more Blood Cells — small structured JSON objects carrying only the essential information.
+
+A Blood Cell has two parts — the Nucleus (the actual data) and the Membrane (the metadata that gives it identity and behaviour):
+
+Blood Cell Structure (JSON)
+
+{
+
+"cell_id":          "C001",              // unique identity
+
+"user_id":          "U001",              // owner — makes it flow across all chats
+
+"chat_id":          "7392",              // birthplace — where it was created
+
+"topic_id":         "coding",            // category for dormant activation
+
+"session_id":       "S042",              // which login session created this
+
+"content":          "User prefers Python over JavaScript",
+
+"importance_score": 8,                   // 1-10 — controls decay and priority
+
+"keywords":         ["Python","coding","preference"],
+
+"created_at":       "2026-03-17T10:00:00",
+
+"expires_at":       null,                // null = never expires (high importance)
+
+"last_activated":   "2026-03-17T10:00:00",
+
+"activation_count": 1,                  // how many times used across all chats
+
+"is_link":          false,               // true if this points to vault content
+
+"link_id":          null,                // vault pointer for large content
+
+"next_cell_id":     null                 // chain pointer for very long content
+
+}
+
+2.2 The Artery — Raw Cell Pipeline TO the Heart
+
+The artery is the pipeline that carries raw unfiltered cells FROM the chat TO the Heart for purification. When a user types a message, a raw cell is immediately created and pushed into the artery queue. The artery ensures no message is ever lost even if the Heart is busy processing other cells. Raw cells line up in order and the Heart processes them one by one.
+
+In programming the artery is a Redis Queue (message queue). It uses a LPUSH command to push raw cells in and RPOP to pull them out in order. It is a first-in first-out pipeline — like a blood vessel carrying unfiltered blood toward the heart.
+
+artery.lpush("artery_raw_cells", json.dumps(raw_cell))   # push raw cell into artery
+
+2.3 The Heart — Purification Engine
+
+The Heart is the most important component. It is a Python algorithm that runs as a background process 24 hours a day 7 days a week. It pulls raw cells from the artery, runs them through three filtration levels, and outputs clean purified cells ready for circulation.
+
+The Heart uses a 3-Level pipeline designed to be smart but lightweight. The genius part runs only 1% of the time — for the remaining 99% of messages the simpler faster levels handle everything:
+
+L1
+
+The Sieve — 0% AI, 100% speed
+
+Basic Python rules remove obvious waste instantly. Filler words (um, ah, so, yeah), empty greetings (how are you), and pure small talk are flushed immediately. Handles 90% of all input for near-zero compute cost. Tools: spaCy, NLTK.
+
+↓
+
+L2
+
+The Valve — 10% intelligence
+
+A small intent classifier categorises what remains. Is this a permanent fact (I live in Mumbai), a temporary state (I am tired), or noise? Temporary and noise are flushed. Only permanent facts proceed to Level 3. Tools: small classifier model, Gemma 3 27B via OpenRouter.
+
+↓
+
+L3
+
+The Purifier — 90% intelligence, runs rarely
+
+Only activates when Level 2 passes a permanent fact AND a conflict is detected with an existing cell. Compares timestamps, resolves which version is truth, assigns final importance score. Tools: Llama 3.3 70B via OpenRouter.
+
+The 3 questions the Heart asks for every input:
+
+Signal vs Noise: If I delete this, does the meaning of the user's intent change? If no — flush it.
+
+State Supremacy: Does a cell already exist with this keyword but an older timestamp? If yes — the old cell is waste, new one wins.
+
+Utility Score: Is this data tagged with a high-priority keyword or linked to a repeat behaviour? Score it accordingly.
+
+2.4 The Vein — Purified Cell Pipeline FROM the Heart
+
+The vein carries purified clean cells FROM the Heart TO all chat sessions. Once the Heart finishes purifying a cell it publishes it to a Redis Pub/Sub channel named after the user. Every chat tab the user has open subscribes to this channel and receives the cell instantly — without any search, without any query, without any request. It just arrives.
+
+vein.publish(f"user_{cell['user_id']}_cells", json.dumps(purified_cell))   # pump into vein
+
+Each user has their own private vein channel named user_U001_cells for example. This means cells from User 1 never mix with cells from User 2. This is the Blood Type encryption — private channels per user.
+
+2.5 The Nervous System — Cross-Session Circulation
+
+The Nervous System is the middleware connecting every chat tab the user has open. It is built on Redis Pub/Sub combined with WebSockets. The moment a purified cell enters the vein, the Nervous System broadcasts it to all subscribed chat tabs via WebSocket — pushing it live to the browser without any page refresh. Chat B and Chat C learn what Chat A just created in under 100 milliseconds.
+
+2.6 The Bones — Long-Term Storage
+
+The Bones are the long-term storage layer. Dormant cells — those not currently circulating — sleep in a vector database called ChromaDB. When a user types something that matches a dormant cell's keywords, ChromaDB performs a similarity search, wakes the cell up, and injects it into the vein to start circulating again.
+
+2.7 The Immune System — Security Layer
+
+Every raw cell is sanitised before it enters the artery. The Immune System strips any executable code, prompt injection attempts, or malicious content from the raw cell before the Heart ever sees it. This makes HEARTBEAT secure by design — infected data cannot reach the Heart or the Nervous System.
+
+3. The Link Cell System — Handling Large Content
+
+A standard Blood Cell is designed to carry one small fact. But sometimes an AI response is thousands of words long. Forcing big content into a small cell would clog the Nervous System. The Link Cell system solves this elegantly with three levels based on content size.
+
+Cell Type
+
+When used
+
+How it works
+
+Normal Cell
+
+Short facts under ~200 words
+
+Content stored directly inside the cell. Circulates freely.
+
+Link Cell
+
+Medium content 200 to 5000 words
+
+Cell holds a pointer (link_id) to vault. Only HEAD cell circulates. Full content sleeps in Bones until user asks for it.
+
+Chain Cell
+
+Very long content over 5000 words
+
+Content split into Parts 1, 2, 3, 4 etc. Each part has next_cell_id pointing to the next. Only Part 1 HEAD circulates. Full chain retrieved only on request.
+
+The rule the Heart follows for every new piece of content:
+
+Is content under 500 tokens? Store directly in cell. Normal Cell. Done.
+
+Is content 500 to 5000 tokens? Create Link Cell. Store summary in cell, full content in Link Vault table in database.
+
+Is content over 5000 tokens? Create Chain Cell. Split into 500-token parts. Link them with next_cell_id chain. Only HEAD part circulates.
+
+4. Complete Workflow — Step by Step
+
+This is the exact sequence of events from the moment a user types a message to the moment purified cells reach all open chat tabs.
+
+01
+
+User types a message in Chat A
+
+A message is typed and submitted. The browser sends it to the FastAPI server via HTTP POST. Two parallel processes start simultaneously.
+
+↓
+
+02
+
+Parallel Track A — Database storage
+
+The full raw message is saved to the SQL database permanently as a row in the messages table with msg_id, chat_id, user_id, role, content, timestamp. This is for display only. The screen will always show the full chat history.
+
+↓
+
+03
+
+Parallel Track B — Raw Cell creation
+
+Simultaneously a Raw Cell JSON is created from the same message. It includes all specifications — user_id, chat_id, topic_id, raw content, timestamp, initial keywords. This raw cell is pushed into the Artery Queue via Redis LPUSH.
+
+↓
+
+04
+
+Artery carries raw cell to Heart
+
+The raw cell travels through the artery (Redis Queue). If many users send messages simultaneously, cells queue up in order. The Heart processes them sequentially. No cell is lost.
+
+↓
+
+05
+
+Heart Level 1 — The Sieve
+
+Heart pulls raw cell from artery. Level 1 runs instantly using spaCy. Filler words, small talk, and obvious noise are stripped. 90% of bulk removed at zero AI cost. If nothing remains after sieve — cell is discarded entirely.
+
+↓
+
+06
+
+Heart Level 2 — The Valve
+
+Remaining content is sent to the intent classifier. Question: is this a permanent fact, a temporary state, or noise? Temporary states (I am tired right now) are flushed. Permanent facts proceed. If fact — check for conflict with existing cells.
+
+↓
+
+07
+
+Heart Level 3 — The Purifier (only if conflict)
+
+If a conflicting cell already exists, Level 3 activates. Llama 3.3 70B compares both cells using timestamps and semantic similarity. The newer or more accurate cell wins. Old cell is marked expired. Importance score assigned to purified cell.
+
+↓
+
+08
+
+Purified Cell enters Vein
+
+Clean JSON cell exits the Heart and enters the Vein via Redis PUBLISH to channel user_U001_cells. The cell now has final content, importance score, keywords, expiry timestamp, and all IDs.
+
+↓
+
+09
+
+Nervous System broadcasts to all chats
+
+Every chat tab subscribed to user_U001_cells receives the cell instantly via WebSocket push. Chat B and Chat C now know what Chat A just learned — in under 100 milliseconds. No search performed.
+
+↓
+
+10
+
+Dormant cells sleep in Bones
+
+Low-importance cells are stored in ChromaDB as vector embeddings. They do not circulate. They sleep until a keyword match wakes them. This keeps the Nervous System light and fast.
+
+↓
+
+11
+
+Chemical Trigger — dormant cell activates
+
+When a user types a message in any chat, keywords are extracted and compared to dormant cells in ChromaDB. If a match is found, the dormant cell is pulled from Bones, re-injected into the Vein, and starts circulating again.
+
+↓
+
+12
+
+AI model receives active cells as context
+
+When the AI model needs to respond, it receives not the raw chat history but the 5-20 most relevant currently active cells as structured context. This replaces the bloated context window with a lean, precise, always-current set of facts.
+
+5. Database Schema
+
+HEARTBEAT uses one central database. All users, all chats, all cells live here — separated by ID columns, not separate databases. Enterprise clients get their own isolated database instance for privacy.
+
+Table 1 — USERS
+
+Column
+
+Description
+
+user_id (PRIMARY KEY)
+
+Unique identifier for each user
+
+name, email
+
+Basic account information
+
+plan_type
+
+free, pro, enterprise
+
+created_at
+
+Account creation timestamp
+
+encryption_key
+
+Blood Type — ensures cells only flow to this user
+
+Table 2 — CHATS
+
+Column
+
+Description
+
+chat_id (PRIMARY KEY)
+
+Unique identifier for each chat session
+
+user_id (FOREIGN KEY)
+
+Links chat to its owner
+
+title
+
+Chat name shown on screen
+
+created_at
+
+When chat was created
+
+Table 3 — MESSAGES
+
+Column
+
+Description
+
+msg_id (PRIMARY KEY)
+
+Unique message identifier
+
+chat_id (FOREIGN KEY)
+
+Which chat this message belongs to
+
+user_id (FOREIGN KEY)
+
+Who sent or received this message
+
+role
+
+user or assistant
+
+content
+
+Full raw message text — for display only
+
+timestamp
+
+When message was sent
+
+Table 4 — BLOOD CELLS (core HEARTBEAT table)
+
+Column
+
+Description
+
+cell_id (PRIMARY KEY)
+
+Unique cell identifier
+
+user_id (FOREIGN KEY)
+
+Owner — allows cross-chat circulation
+
+chat_id
+
+Birthplace — where cell was originally created
+
+topic_id
+
+Category for dormant activation (coding, finance, health etc)
+
+session_id
+
+Which login session created this cell
+
+content
+
+The purified fact stored in this cell
+
+importance_score (1-10)
+
+Controls decay rate and priority in Adrenaline Mode
+
+keywords[ ]
+
+Chemical tags for dormant activation triggers
+
+created_at
+
+When cell was born
+
+expires_at
+
+Null = never expires. Set by Heart based on importance score
+
+last_activated_at
+
+Last time this cell was used in a conversation
+
+activation_count
+
+Total times used — high count triggers Mitosis merging
+
+is_link
+
+TRUE if this cell points to vault content
+
+link_id
+
+Pointer to Link Vault if is_link is TRUE
+
+next_cell_id
+
+Pointer to next part for Chain Cells
+
+Table 5 — LINK VAULT (stores large content)
+
+Column
+
+Description
+
+link_id (PRIMARY KEY)
+
+Unique vault entry identifier
+
+cell_id (FOREIGN KEY)
+
+Which cell owns this content
+
+full_content
+
+The actual large text — 500 to 50000 words
+
+part_number
+
+1, 2, 3, 4 for Chain Cells
+
+total_parts
+
+How many parts in this chain
+
+created_at
+
+When stored
+
+6. Advanced Biological Logic
+
+6.1 Apoptosis — Cell Decay
+
+In biology, apoptosis is programmed cell death. Old red blood cells naturally die after 120 days and are replaced. HEARTBEAT applies the same logic to prevent memory bloat.
+
+Importance Score
+
+Decay Rule
+
+Score 1-2 (trivial)
+
+Expires in 3 days if not activated
+
+Score 3-4 (low)
+
+Expires in 7 days if not activated
+
+Score 5-6 (medium)
+
+Expires in 30 days if not activated
+
+Score 7-8 (high)
+
+Expires in 180 days if not activated
+
+Score 9-10 (critical)
+
+Never expires — lives permanently
+
+Any cell that gets activated (used in a conversation) has its expires_at reset. Frequently used cells effectively become immortal because they keep getting reset.
+
+6.2 Mitosis — Memory Compounding
+
+When 5 or more cells share the same topic and their activation_count collectively exceeds 50, the Heart merges them into one Super Cell. The Super Cell summarises all their content into one stronger, more complete fact. The individual cells are then marked expired and removed from circulation. This makes memory get smarter and smaller over time rather than bigger and messier.
+
+6.3 Adrenaline Mode — Urgency Interrupt
+
+When a user types high-urgency keywords such as Error, Critical, Help, ASAP, or Emergency, the Nervous System enters Adrenaline Mode. All low-importance cells (score 1-4) are immediately frozen and stop circulating. Only high-importance cells (score 7-10) remain active. Response speed improves dramatically because the AI processes far fewer cells. Adrenaline Mode deactivates automatically after the urgent topic is resolved.
+
+6.4 Version Supremacy — Conflict Resolution
+
+When the Heart detects two cells with conflicting facts (Cell A from 2024 says User lives in Mumbai, Cell B from 2026 says User lives in Delhi), it applies Version Supremacy. The newer timestamp always wins. The older cell is immediately expired and removed from circulation. The AI will never give contradictory answers because conflicting old data cannot survive.
+
+6.5 Cell Density Control
+
+At any given moment, a maximum of 20 Active Cells circulate in the Nervous System for any single chat session. The remaining cells stay dormant in Bones. This hard limit ensures the AI context never gets flooded regardless of how many years of history a user has accumulated. The Heart is the gatekeeper — it decides which 20 cells are most relevant to the current conversation topic.
+
+7. Tech Stack — What to Build With
+
+Every tool in this stack is free and open source. The entire prototype can be built with zero cost.
+
+Organ
+
+Tool
+
+Why
+
+Artery (raw pipeline)
+
+Redis Queue (rq)
+
+Fast message queue — raw cells line up in order for Heart to process
+
+Heart Level 1
+
+spaCy or NLTK (Python)
+
+Instant noise removal — no AI needed, pure rule-based filtering
+
+Heart Level 2
+
+Gemma 3 27B via OpenRouter
+
+Fast intent classification — fact vs noise vs temporary
+
+Heart Level 3
+
+Llama 3.3 70B via OpenRouter
+
+Deep fact extraction, conflict resolution, importance scoring
+
+Visual Cortex
+
+Mistral Small 3.1 24B (multimodal)
+
+Converts images to DNA Tag text descriptions for Visual Cells
+
+Vein (purified pipeline)
+
+Redis Pub/Sub
+
+Instant broadcast of purified cells to all subscribed chat tabs
+
+Nervous System
+
+Redis + WebSockets (FastAPI)
+
+Real-time push of cells to browser without page refresh
+
+Bones (dormant storage)
+
+ChromaDB
+
+Vector database for dormant cells — fast similarity search on keywords
+
+Link Vault
+
+SQLite or PostgreSQL
+
+Stores large content for Link Cells and Chain Cells
+
+API Server
+
+FastAPI (Python)
+
+Connects all components together — handles HTTP and WebSocket
+
+User Interface
+
+Streamlit (Python)
+
+Simplest way to build chat UI entirely in Python for prototype
+
+Fallback AI
+
+openrouter/auto
+
+Auto-selects best available free model when primary hits rate limit
+
+7.1 The 5 OpenRouter API Keys Strategy
+
+Using 5 separate API keys from OpenRouter multiplies the free rate limits by 5 and ensures the prototype never stops working even when individual keys hit their daily limits.
+
+Key Name
+
+Model and Purpose
+
+HEART_LEVEL3_KEY
+
+meta-llama/llama-3.3-70b-instruct:free — deep fact extraction
+
+HEART_LEVEL2_KEY
+
+google/gemma-3-27b-it:free — fast intent classification
+
+VISUAL_CORTEX_KEY
+
+mistralai/mistral-small-3.1-24b-instruct:free — image to DNA tag
+
+NERVOUS_SYSTEM_KEY
+
+qwen/qwen3-235b-a22b:free — keyword matching and trigger detection
+
+FALLBACK_KEY
+
+openrouter/auto — automatic fallback when others hit rate limits
+
+8. Competitor Analysis
+
+Feature
+
+Mem0 + Zep (existing)
+
+HEARTBEAT (your idea)
+
+Memory model
+
+Library — stop and search
+
+Circulatory — already flowing
+
+Cross-session memory
+
+Yes — search-based retrieval
+
+Yes — live real-time circulation
+
+Cross-tab live sync
+
+No — not built anywhere
+
+Yes — unique differentiator
+
+Conflict resolution
+
+Temporal invalidation (Zep)
+
+Version Supremacy — Heart kills old cell instantly
+
+Memory decay
+
+TTL expiry (basic)
+
+Apoptosis — importance-weighted half-life
+
+Memory compounding
+
+Not built
+
+Mitosis — cells merge into Super Cells over time
+
+Urgency handling
+
+Not built
+
+Adrenaline Mode — freezes irrelevant cells instantly
+
+Large content handling
+
+Basic chunking
+
+Link Cell + Chain Cell with vault pointer system
+
+Design philosophy
+
+Engineer mindset — databases
+
+Biologist mindset — living circulation
+
+Funding status
+
+Mem0: $24M raised
+
+Idea stage — prototype needed
+
+What Your Competitors Are Missing — Your Real Moat
+
+Cross-session live sync: Neither Mem0 nor Zep does real-time cross-tab synchronisation. This is the single most valuable unbuilt feature in the entire memory middleware space.
+
+Mitosis: No product currently merges related cells into stronger Super Cells over time. Memory in all current systems only grows — never compounds and shrinks.
+
+Adrenaline Mode: Context-aware urgency switching does not exist in any current memory product.
+
+Link Cell system: No current system handles large content with a pointer-based vault architecture designed for the Nervous System.
+
+9. Does HEARTBEAT Solve the 6 Core Problems?
+
+Problem
+
+Solved?
+
+How HEARTBEAT addresses it
+
+Context window hard limit
+
+PARTIALLY
+
+Heart compresses data reducing token pressure. Window limit itself still exists but rarely matters.
+
+Cost explodes with long context
+
+YES
+
+Only 5-20 active cells processed at any time. 90% dormant. Cost stays flat regardless of history length.
+
+Long-term memory is fake
+
+YES
+
+Cells tied to user_id flow permanently. Not text injection — living circulation.
+
+What deserves to be remembered?
+
+YES
+
+3-question Heart logic + importance scoring + decay rules = clear automated framework.
+
+No true episodic memory
+
+PARTIALLY
+
+Cells have timestamps, IDs, birthplace. Closer than anything current but full experiential recall not yet solved.
+
+RAG retrieval is imprecise
+
+YES
+
+Retrieval step eliminated entirely. Relevant cells are already flowing — no search needed.
+
+10. Build Roadmap — From Idea to Prototype
+
+Week 1
+
+Build the Heart
+
+Install Python, spaCy, Pydantic. Write the 3-level filtration pipeline. Input: one messy sentence. Output: clean JSON Blood Cell with importance score. This is your proof of concept.
+
+↓
+
+Week 2
+
+Build the Bones
+
+Install ChromaDB and SQLite. Create all 5 database tables. Store purified cells. Build basic dormant cell retrieval on keyword match.
+
+↓
+
+Week 3
+
+Build the Artery and Vein
+
+Install Redis. Build artery queue with LPUSH/RPOP. Build vein channel with PUBLISH/SUBSCRIBE. Connect Heart to both. Cells now flow automatically.
+
+↓
+
+Week 4
+
+Build the Interface
+
+Install Streamlit. Create two chat tabs. Type in Tab 1 — watch purified cell appear in Tab 2 in real time via WebSocket. This single demo proves the entire idea.
+
+↓
+
+Month 2
+
+Add Link Cell system
+
+Build Link Vault table. Add is_link and link_id logic to Heart. Large answers now stored in vault with HEAD cell circulating.
+
+↓
+
+Month 3
+
+Add advanced biology
+
+Implement Apoptosis decay, Mitosis merging, Adrenaline Mode, Version Supremacy. System now self-manages without manual maintenance.
+
+↓
+
+Month 4+
+
+Package as API and pitch
+
+Wrap HEARTBEAT as a REST API. Build demo showing 10000 messages compressed to 50 active cells. Pitch to companies as memory middleware.
+
+The Single Most Important First Step
+
+Build this first — the Heart prototype in Python
+
+Input:  'Um so yeah I really think I want to start using Python more for my projects'
+
+Expected output:
+
+{
+
+"cell_id": "C001",
+
+"content": "User prefers Python for projects",
+
+"importance_score": 7,
+
+"keywords": ["Python", "coding", "preference"],
+
+"expires_at": "2026-09-17"
+
+}
+
+If you can demonstrate this working — you have proven the Heart. Everything else is built on top.
+
+HEARTBEAT v2.0  —  End of Blueprint
+
+Original idea and architecture by Creator  |  March 2026

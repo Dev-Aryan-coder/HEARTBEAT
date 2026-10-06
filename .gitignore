@@ -1,0 +1,33 @@
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Databases & Vector Storage
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+chroma_store/
+
+# Local Data, Uploads & ZIP Archives
+data/
+*.zip
+
+# IDE & Editor configs
+.vscode/
+.idea/
+.qodo/
+.cursorrules
+
+# Test & Debug Output Logs
+test_results.txt
+tests_output.txt
+audit_log.txt

@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HEARTBEAT | Developer Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</head>
+<body>
+    <div id="offline-banner" class="hidden">
+        <span class="banner-icon">⚠</span> 
+        Backend Offline — Run: <code>python main.py</code> (Attempting to reconnect...)
+    </div>
+
+    <div class="dashboard-wrapper">
+        <!-- LEFT SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-top">
+                <div class="logo">
+                    <svg class="heart-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.84-8.84 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                    </svg>
+                    <span>HEARTBEAT</span>
+                </div>
+                
+                <nav class="nav-groups">
+                    <div class="nav-section">
+                        <span class="nav-label">OVERVIEW</span>
+                        <div class="nav-item active" data-page="health">
+                            <span class="icon">🏥</span> System Health
+                        </div>
+                        <div class="nav-item" data-page="activity">
+                            <span class="icon">⚡</span> Live Activity
+                        </div>
+                    </div>
+
+                    <div class="nav-section">
+                        <span class="nav-label">MEMORY SYSTEM</span>
+                        <div class="nav-item" data-page="cells">
+                            <span class="icon">🧬</span> Blood Cells
+                        </div>
+                        <div class="nav-item" data-page="circulation">
+                            <span class="icon">🔄</span> Cell Circulation
+                        </div>
+                        <div class="nav-item" data-page="pipeline">
+                            <span class="icon">🚜</span> Heart Pipeline
+                        </div>
+                        <div class="nav-item" data-page="vault">
+                            <span class="icon">🔗</span> Link Vault
+                        </div>
+                    </div>
+
+                    <div class="nav-section">
+                        <span class="nav-label">DATABASE</span>
+                        <div class="nav-item" data-page="messages">
+                            <span class="icon">💬</span> Messages Table
+                        </div>
+                        <div class="nav-item" data-page="chats">
+                            <span class="icon">📂</span> Chats Table
+                        </div>
+                        <div class="nav-item" data-page="users">
+                            <span class="icon">👤</span> Users Table
+                        </div>
+                    </div>
+
+                    <div class="nav-section">
+                        <span class="nav-label">ANALYTICS</span>
+                        <div class="nav-item" data-page="heatmaps">
+                            <span class="icon">🌡</span> Heatmaps
+                        </div>
+                        <div class="nav-item" data-page="topics">
+                            <span class="icon">📊</span> Topic Distribution
+                        </div>
+                        <div class="nav-item" data-page="timeline">
+                            <span class="icon">⏰</span> Cell Timeline
+                        </div>
+                    </div>
+
+                    <div class="nav-section">
+                        <span class="nav-label">TOOLS</span>
+                        <div class="nav-item" data-page="testpipeline">
+                            <span class="icon">🧪</span> Test Pipeline
+                        </div>
+                        <div class="nav-item" data-page="apiexplorer">
+                            <span class="icon">🛠</span> API Explorer
+                        </div>
+                    </div>
+                </nav>
+            </div>
+            
+            <div class="sidebar-bottom">
+                <a href="index.html" target="_blank" class="chat-link-btn">
+                    <span>Open Chat</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                </a>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="content-area">
+            <!-- Health Page -->
+            <section id="page-health" class="page-container active">
+                <div class="page-header flex-between">
+                    <div>
+                        <h1 class="page-title">System Health</h1>
+                        <p class="page-subtitle">Real-time biometrics for the digital nervous system. <span id="health-last-updated" class="opacity-6">Updating...</span></p>
+                    </div>
+                    <button class="btn btn-secondary" id="refresh-health-btn">Manual Refresh</button>
+                </div>
+                
+                <div class="metrics-grid">
+                    <!-- Cards injected by JS -->
+                </div>
+
+                <div class="architecture-section mt-32">
+                    <h2 class="section-title">Architecture Flow</h2>
+                    <div class="arch-canvas-wrapper card border-sys">
+                        <div id="arch-dots-container"></div>
+                        <svg id="arch-svg" width="100%" height="180"></svg>
+                    </div>
+                    <div class="arch-legend flex-center mt-8 gap-24 opacity-6 f-11">
+                        <div class="legend-item"><span class="legend-dot dot-user"></span> User</div>
+                        <div class="legend-item"><span class="legend-dot dot-artery"></span> Artery (Redis)</div>
+                        <div class="legend-item"><span class="legend-dot dot-heart"></span> Heart (L1-L3)</div>
+                        <div class="legend-item"><span class="legend-dot dot-vein"></span> Vein (PubSub)</div>
+                        <div class="legend-item"><span class="legend-dot dot-nervous"></span> Nervous (WS)</div>
+                    </div>
+                </div>
+
+                <div class="grid-2 mt-32">
+                    <div class="chart-card card border-sys">
+                        <h3 class="chart-title">Cell Status Distribution</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="health-status-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card card border-sys">
+                        <h3 class="chart-title">Topic Distribution</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="health-topic-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Live Activity Page -->
+            <section id="page-activity" class="page-container">
+                <div class="page-header flex-between">
+                    <div>
+                        <h1 class="page-title">Live Activity</h1>
+                        <div class="flex-center gap-12 mt-4">
+                            <div id="activity-ws-badge" class="badge bg-red-s text-red border-red">
+                                <span class="dot bg-red"></span> Disconnected
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-center gap-12">
+                        <button class="btn btn-secondary" id="activity-pause-btn">Pause Feed</button>
+                        <button class="btn btn-secondary" id="activity-clear-btn">Clear All</button>
+                        <button class="btn btn-secondary" id="activity-export-btn">Export Log</button>
+                    </div>
+                </div>
+
+                <div id="activity-pause-banner" class="hidden alert-amber mt-12">
+                    Feed paused — <span id="pending-events-count">0</span> new events waiting
+                </div>
+
+                <div class="log-container mt-12 card" id="activity-log">
+                    <!-- Event rows injected by JS -->
+                    <div class="empty-state">
+                        <div class="pulse-dot"></div>
+                        <span>Waiting for events...</span>
+                    </div>
+                </div>
+
+                <div class="activity-graph card mt-12 bg-black-2">
+                    <canvas id="activity-sparkline-chart" height="80"></canvas>
+                </div>
+            </section>
+
+            <!-- Cells Page -->
+            <section id="page-cells" class="page-container">
+                <div class="page-header flex-between">
+                    <div>
+                        <h1 class="page-title">Blood Cells <span id="cells-count" class="badge bg-accent-s text-accent ml-8">0</span></h1>
+                        <p class="page-subtitle">Registry of short-term and persistent memory units.</p>
+                    </div>
+                    <div class="flex-center gap-12">
+                        <button class="btn btn-secondary" id="refresh-cells-btn">Refresh</button>
+                        <button class="btn btn-secondary" id="export-cells-csv">Export CSV</button>
+                    </div>
+                </div>
+
+                <div class="filter-bar mt-24">
+                    <div class="status-filters" id="cell-status-filters">
+                        <button class="pill active" data-status="all">All</button>
+                        <button class="pill" data-status="active">Active</button>
+                        <button class="pill" data-status="dormant">Dormant</button>
+                        <button class="pill" data-status="expired">Expired</button>
+                        <button class="pill" data-status="pending_clarification">Pending</button>
+                    </div>
+                    
+                    <div class="search-sort-row mt-12">
+                        <input type="text" id="cells-search-input" class="input flex-1" placeholder="Search by topic, keyword, summary...">
+                        <select id="cells-sort-select" class="select w-150" title="Sort cells">
+                            <option value="newest">Newest First</option>
+                            <option value="oldest">Oldest First</option>
+                            <option value="importance_high">Importance High → Low</option>
+                            <option value="importance_low">Importance Low → High</option>
+                            <option value="expiry">Expiry Soonest</option>
+                        </select>
+                    </div>
+
+                    <div class="stats-bar f-11 text-2 mt-8" id="cells-stats-bar">
+                        Showing 0 of 0 cells | Avg importance: 0 | 0 expiring in 7 days
+                    </div>
+                </div>
+
+                <div class="cells-grid mt-24" id="cells-container">
+                    <!-- Cards injected by JS -->
+                </div>
+
+                <div class="pagination mt-32 flex-between">
+                    <button class="btn btn-secondary" id="cells-prev-page">Previous</button>
+                    <span id="cells-pagination-info" class="f-13 text-2">Page 1 of 1</span>
+                    <button class="btn btn-secondary" id="cells-next-page">Next</button>
+                </div>
+            </section>
+
+            <!-- Circulation Page -->
+            <section id="page-circulation" class="page-container">
+                <div class="page-header">
+                    <h1 class="page-title">Cell Circulation</h1>
+                    <p class="page-subtitle">Live visualization of memory flow through Heart organs.</p>
+                </div>
+
+                <div class="circulation-canvas-card card mt-24 border-sys">
+                    <canvas id="circulation-canvas" height="300"></canvas>
+                    <div class="arch-legend flex-center pb-16 gap-24 opacity-6 f-11">
+                        <div class="legend-item"><span class="legend-dot dot-artery"></span> Artery</div>
+                        <div class="legend-item"><span class="legend-dot dot-heart"></span> Heart L1-L3</div>
+                        <div class="legend-item"><span class="legend-dot dot-vein"></span> Vein</div>
+                        <div class="legend-item"><span class="legend-dot dot-nervous"></span> Nervous</div>
+                    </div>
+                </div>
+
+                <div class="grid-2 mt-24">
+                    <div class="card p-0 border-sys overflow-hidden">
+                        <div class="p-16 border-bottom flex-between bg-black-2">
+                            <h3 class="f-13 fw-600">Currently Processing</h3>
+                            <span class="badge bg-amber-s text-amber">In-Flight</span>
+                        </div>
+                        <div class="log-list h-200 overflow-y-auto" id="circ-processing-list">
+                            <!-- Items -->
+                        </div>
+                    </div>
+                    <div class="card p-0 border-sys overflow-hidden">
+                        <div class="p-16 border-bottom flex-between bg-black-2">
+                            <h3 class="f-13 fw-600">Recently Purified</h3>
+                            <span class="badge bg-green-s text-green">Success</span>
+                        </div>
+                        <div class="log-list h-200 overflow-y-auto" id="circ-recent-list">
+                            <!-- Items -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-32">
+                    <h2 class="section-title">Organ Statistics</h2>
+                    <div class="metrics-grid grid-3 mt-12" id="organ-stats-container">
+                        <!-- Cards -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Heart Pipeline Page -->
+            <section id="page-pipeline" class="page-container">
+                <div class="page-header">
+                    <h1 class="page-title">Heart Pipeline</h1>
+                </div>
+
+                <div class="pipeline-header-svg mt-24">
+                    <!-- Step boxes -->
+                    <div class="header-flow-box">
+                        <div class="flow-step border-coral">
+                            <span class="step-num">L1</span>
+                            <span class="step-name">Sieve</span>
+                        </div>
+                        <div class="flow-arrow" id="flow-l1-l2">
+                            <span class="arrow-up text-green">X passed</span>
+                            <span class="arrow-main">→</span>
+                            <span class="arrow-down text-red">Y rejected</span>
+                        </div>
+                        <div class="flow-step border-amber">
+                            <span class="step-num">L2</span>
+                            <span class="step-name">Valve</span>
+                        </div>
+                        <div class="flow-arrow" id="flow-l2-l3">
+                            <span class="arrow-up text-green">X passed</span>
+                            <span class="arrow-main">→</span>
+                            <span class="arrow-down text-red">Y rejected</span>
+                        </div>
+                        <div class="flow-step border-blue">
+                            <span class="step-num">L3</span>
+                            <span class="step-name">Purifier</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pipeline-levels mt-32 flex-col gap-24" id="pipeline-levels-container">
+                    <!-- Cards -->
+                </div>
+
+                <div class="test-bench-section mt-48">
+                    <h2 class="section-title">Test a message through the pipeline</h2>
+                    <div class="card mt-16 p-24">
+                        <textarea id="pipe-test-textarea" class="input f-13 monospace h-80" placeholder="Type any message to test..."></textarea>
+                        
+                        <div class="suggestions-row mt-12 flex-wrap gap-8">
+                            <button class="btn-suggestion" data-val="I love Python programming">Python</button>
+                            <button class="btn-suggestion" data-val="I like Apple products">Ambiguity</button>
+                            <button class="btn-suggestion" data-val="Build a website and suggest marketing and tell me tech stack">Intent Split</button>
+                            <button class="btn-suggestion" data-val="Hello">Rejection</button>
+                            <button class="btn-suggestion" data-val="I live in Mumbai, India">Fact Extraction</button>
+                        </div>
+                        
+                        <button class="btn btn-accent mt-16" id="run-pipe-test-btn">Run Pipeline Test</button>
+
+                        <div id="pipe-test-results" class="mt-24 hidden">
+                            <!-- Step result blocks -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Link Vault Page -->
+            <section id="page-vault" class="page-container">
+                <div class="page-header">
+                    <h1 class="page-title">Link Vault</h1>
+                </div>
+                
+                <div class="metrics-grid grid-3 mt-24">
+                    <div id="vault-stat-total"></div>
+                    <div id="vault-stat-size"></div>
+                    <div id="vault-stat-chains"></div>
+                </div>
+
+                <div class="filter-bar mt-24 flex-between">
+                    <div class="flex-center gap-12">
+                        <button class="pill active">All</button>
+                        <button class="pill">text</button>
+                        <button class="pill">image</button>
+                        <button class="pill">audio</button>
+                    </div>
+                    <select class="select w-150" title="Filter vault by type">
+                        <option value="all">All Types</option>
+                        <option value="text">Text</option>
+                        <option value="image">Image</option>
+                        <option value="audio">Audio</option>
+                    </select>
+                </div>
+
+                <div class="card mt-16 p-0 border-sys overflow-hidden">
+                    <table class="table" id="vault-table">
+                        <thead>
+                            <tr>
+                                <th>Link ID</th>
+                                <th>Cell ID</th>
+                                <th>Type</th>
+                                <th>Part</th>
+                                <th>Size</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vault-tbody">
+                            <!-- Rows -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-32">
+                    <h2 class="section-title">Chains</h2>
+                    <div class="chains-container mt-12" id="vault-chains-container">
+                        <!-- Chain groups -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Messages Table Page -->
+            <section id="page-messages" class="page-container">
+                <div class="page-header">
+                    <h1 class="page-title">Messages Table</h1>
+                </div>
+
+                <div class="controls-row mt-24 flex-between">
+                    <div class="flex-center gap-12">
+                        <select class="select w-200" id="msg-chat-select" title="Select Chat Session">
+                            <option value="all">All Chats</option>
+                        </select>
+                        <div class="toggle-group">
+                            <button class="toggle-btn active" data-view="chat">Chat View</button>
+                            <button class="toggle-btn" data-view="table">Table View</button>
+                        </div>
+                    </div>
+                    <button class="btn btn-secondary" id="msg-export-btn">Export CSV</button>
+                </div>
+
+                <div id="msg-chat-view" class="card mt-16 p-24 bg-card-dark overflow-y-auto h-viewport-sub">
+                    <!-- Bubbles -->
+                </div>
+
+                <div id="msg-table-view" class="card mt-16 p-0 border-sys overflow-hidden hidden">
+                    <table class="table" id="msg-table">
+                        <thead>
+                            <tr>
+                                <th>Role</th>
+                                <th>Content</th>
+                                <th>Chat ID</th>
+                                <th>Message ID</th>
+                                <th>Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="msg-tbody"></tbody>
+                    </table>
+                </div>
+
+                <div class="stats-bar f-11 text-2 mt-8" id="msg-stats-bar">
+                    Total messages: 0 | User: 0 | AI: 0 | Avg length: 0 chars
+                </div>
+            </section>
+
+            <!-- Chats Table Page -->
+            <section id="page-chats" class="page-container">
+                <div class="page-header">
+                    <h1 class="page-title">Chats Table</h1>
+                </div>
+                
+                <div class="flex-center gap-24 mt-4 f-12 text-2">
+                    <span>Total: <b class="text-white" id="chats-total">0</b></span>
+                    <span>Oldest: <b class="text-white" id="chats-oldest">—</b></span>
+                    <span>Recent: <b class="text-white" id="chats-recent">—</b></span>
+                </div>
+
+                <div class="chats-grid mt-24" id="chats-container">
+                    <!-- Cards -->
+                </div>
+
+                <div class="mt-48">
+                    <h2 class="section-title">Raw Table View</h2>
+                    <div class="card mt-12 p-0 border-sys overflow-hidden">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Chat ID</th>
+                                    <th>Title</th>
+                                    <th>User ID</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="chats-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Heatmaps Page -->
+            <section id="page-heatmaps" class="page-container">
+                <div class="page-header"><h1 class="page-title">Heatmaps</h1></div>
+
+                <div class="heatmap-section mt-32">
+                    <h3 class="f-13 fw-600 mb-4">Message Activity by Hour</h3>
+                    <p class="f-11 text-2 mb-16">Darker colors indicate higher message volume across the week.</p>
+                    <div class="card p-24 border-sys">
+                        <div id="heatmap-messages" class="heatmap-grid"></div>
+                        <div class="heatmap-legend mt-16 flex-center gap-8 f-10 text-2">
+                            <span>Low</span>
+                            <div class="legend-scale"></div>
+                            <span>High</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="heatmap-section mt-48">
+                    <h3 class="f-13 fw-600 mb-4">Importance Score by Topic</h3>
+                    <div class="card p-24 border-sys">
+                        <div id="heatmap-importance" class="heatmap-grid"></div>
+                    </div>
+                </div>
+
+                <div class="heatmap-section mt-48">
+                    <h3 class="f-13 fw-600 mb-4">Pipeline Funnel</h3>
+                    <div class="card p-32 border-sys" id="pipeline-funnel-container">
+                        <!-- Funnel bars -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Topics Page -->
+            <section id="page-topics" class="page-container">
+                <div class="page-header"><h1 class="page-title">Topic Distribution</h1></div>
+
+                <div class="grid-4-6 mt-32">
+                    <div class="card border-sys">
+                        <h3 class="f-13 fw-600 mb-16">Cells by Topic</h3>
+                        <div class="h-250"><canvas id="topic-doughnut"></canvas></div>
+                    </div>
+                    <div class="card border-sys">
+                        <h3 class="f-13 fw-600 mb-16">Average Importance by Topic</h3>
+                        <div class="h-250"><canvas id="topic-bar"></canvas></div>
+                    </div>
+                </div>
+
+                <div class="card mt-24 border-sys">
+                    <h3 class="f-13 fw-600 mb-16">Cell Creation Over Last 7 Days</h3>
+                    <div class="h-200"><canvas id="topic-line"></canvas></div>
+                </div>
+
+                <div class="mt-32">
+                    <h2 class="section-title">Topic Breakdown</h2>
+                    <div class="card mt-12 p-0 border-sys overflow-hidden">
+                        <table class="table" id="topic-breakdown-table">
+                            <thead>
+                                <tr>
+                                    <th>Topic</th>
+                                    <th>Cells</th>
+                                    <th>Avg Imp</th>
+                                    <th>Avg Act</th>
+                                    <th>Top Keywords</th>
+                                    <th>Most Recent</th>
+                                </tr>
+                            </thead>
+                            <tbody id="topic-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Timeline Page -->
+            <section id="page-timeline" class="page-container">
+                <div class="page-header flex-between">
+                    <h1 class="page-title">Cell Timeline</h1>
+                    <div class="flex-center gap-12">
+                        <select class="select w-150" id="tl-topic-filter" title="Filter timeline by topic"><option value="all">All Topics</option></select>
+                        <select class="select w-120" id="tl-status-filter" title="Filter timeline by status"><option value="all">All Status</option></select>
+                        <button class="btn btn-secondary" id="tl-apply-btn">Apply</button>
+                    </div>
+                </div>
+
+                <div class="timeline-wrapper mt-32 card border-sys p-0 pt-32">
+                    <div id="timeline-container" class="timeline-scroll">
+                        <!-- Gantt bars -->
+                    </div>
+                    <div id="tl-custom-tooltip" class="tl-tooltip hidden"></div>
+                </div>
+
+                <div class="stats-bar f-11 text-2 mt-12" id="tl-summary">
+                    Oldest cell: 0 days ago | Newest: 0h ago | 0 cells expiring within 7 days
+                </div>
+            </section>
+
+            <!-- Test Pipeline Tools Page -->
+            <section id="page-testpipeline" class="page-container">
+                <div class="page-header"><h1 class="page-title">Test Pipeline</h1></div>
+
+                <!-- Section 1: Send Message -->
+                <div class="test-sec card mt-24">
+                    <h3 class="f-14 fw-600 mb-16">Send Test Message</h3>
+                    <div class="flex gap-12 mb-12">
+                        <input type="text" id="tools-user-id" class="input f-11" placeholder="User ID">
+                        <input type="text" id="tools-chat-id" class="input f-11" placeholder="Chat ID">
+                    </div>
+                    <textarea id="tools-msg-area" class="input h-80 f-12" placeholder="Type message..."></textarea>
+                    <button class="btn btn-accent mt-12" id="tools-send-btn">Send Message</button>
+                    <div id="tools-msg-res" class="mt-16 hidden"></div>
+                </div>
+
+                <!-- Section 2: Ambiguity -->
+                <div class="test-sec card mt-24">
+                    <h3 class="f-14 fw-600 mb-4">Ambiguity Detection</h3>
+                    <p class="f-11 text-2 mb-16">Test messages that should trigger clarification.</p>
+                    <div class="amb-test-rows flex-col gap-8" id="tools-amb-rows"></div>
+                </div>
+
+                <!-- Section 3: Topic Shift -->
+                <div class="test-sec card mt-24">
+                    <h3 class="f-14 fw-600 mb-16">Topic Shift Detector</h3>
+                    <div class="grid-2 gap-16">
+                        <textarea id="tools-prev-msg" class="input h-80" placeholder="Previous message"></textarea>
+                        <textarea id="tools-new-msg" class="input h-80" placeholder="New message"></textarea>
+                    </div>
+                    <div class="flex gap-12 mt-12">
+                        <button class="btn btn-secondary f-11" data-v1="I love coding" data-v2="I have a headache" id="tools-load-ex1">Example 1</button>
+                        <button class="btn btn-secondary f-11" data-v1="Building heartbeat" data-v2="What is for lunch?" id="tools-load-ex2">Example 2</button>
+                        <button class="btn btn-blue ml-auto" id="tools-detect-btn">Detect Shift</button>
+                    </div>
+                    <div id="tools-shift-res" class="mt-16 hidden"></div>
+                </div>
+
+                <!-- Section 5: API Keys -->
+                <div class="test-sec card mt-24">
+                    <h3 class="f-14 fw-600 mb-16">Groq API Key Status</h3>
+                    <table class="table f-11" id="tools-keys-table">
+                        <thead>
+                            <tr>
+                                <th>Key Name</th>
+                                <th>Model Assigned</th>
+                                <th>Status</th>
+                                <th>Response Time</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tools-keys-tbody"></tbody>
+                    </table>
+                    <button class="btn btn-secondary mt-12" id="tools-test-all-keys">Test All Keys</button>
+                </div>
+            </section>
+
+            <!-- API Explorer Page -->
+            <section id="page-apiexplorer" class="page-container">
+                <div class="page-header">
+                    <h1 class="page-title">API Explorer</h1>
+                    <p class="page-subtitle">Test all HEARTBEAT endpoints directly.</p>
+                </div>
+
+                <div class="endpoint-list mt-32 flex-col gap-12" id="explorer-list">
+                    <!-- Cards -->
+                </div>
+            </section>
+        </main>
+
+        <!-- RIGHT LIVE FEED -->
+        <aside class="live-feed">
+            <div class="feed-header">
+                <div class="flex-between">
+                    <h3 class="f-12 fw-700">Live Feed</h3>
+                    <div id="feed-status" class="f-10 flex-center gap-4 text-red">
+                        <span class="dot-pulse bg-red"></span> Offline
+                    </div>
+                </div>
+                <button id="feed-reconnect-btn" class="btn btn-small w-100 mt-8 hidden">Reconnect</button>
+            </div>
+
+            <div class="event-stream" id="feed-stream">
+                <div class="empty-feed">Waiting for activity...</div>
+            </div>
+
+            <div class="mini-stats">
+                <div class="stat-row">
+                    <span class="f-11 text-2">Cells/min</span>
+                    <span class="f-11 fw-700" id="mini-stat-rate">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="f-11 text-2">Avg importance</span>
+                    <span class="f-11 fw-700" id="mini-stat-imp">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="f-11 text-2">Active cells</span>
+                    <span class="f-11 fw-700" id="mini-stat-active">0</span>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="hidden">
+        <div id="modal-content" class="card border-sys">
+            <button id="modal-close" class="btn-close">×</button>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

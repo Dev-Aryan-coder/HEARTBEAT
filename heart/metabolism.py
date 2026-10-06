@@ -192,7 +192,8 @@ async def run_metabolic_cycle(user_id: Optional[str] = None) -> Dict[str, Any]:
     logger.info(f"🧬 METABOLISM COMPLETE: {telemetry}")
 
     # Broadcast living telemetry event via WebSocket
-    target_users = [user_id] if user_id else ["MASTER_USER"]
+    distinct_uids = list({row['user_id'] for row in rows if 'user_id' in row.keys() and row['user_id']})
+    target_users = [user_id] if user_id else (distinct_uids or ["MASTER_USER"])
     for t_uid in target_users:
         try:
             await monitor.broadcast_cell_event(t_uid, {

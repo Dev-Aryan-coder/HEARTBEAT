@@ -2,10 +2,16 @@
 const API_BASE = 'http://127.0.0.1:8000';
 
 // ── STATE ────────────────────────────────────────────────────────────────────
-// window.userId is locked to MASTER_USER
-window.userId = 'MASTER_USER';
-localStorage.setItem('hb_user_id', 'MASTER_USER');
-console.log("[HEARTBEAT ULTIMATE] Identity Locked:", window.userId);
+// Universal User Identity: URL parameter -> localStorage -> MASTER_USER default
+const _urlParams = new URLSearchParams(window.location.search);
+const _paramUser = _urlParams.get('user');
+if (_paramUser && _paramUser.trim()) {
+    window.userId = _paramUser.trim();
+    localStorage.setItem('hb_user_id', window.userId);
+} else {
+    window.userId = localStorage.getItem('hb_user_id') || 'MASTER_USER';
+}
+console.log("[HEARTBEAT ULTIMATE] Active User Identity:", window.userId);
 
 let currentChatId = null;
 let isLoading = false;
@@ -38,9 +44,9 @@ const previewRemove = document.getElementById('image-preview-remove');
 
 // ── INIT ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  if (userAvatar) userAvatar.textContent = 'A';
+  if (userAvatar) userAvatar.textContent = window.userId ? window.userId.charAt(0).toUpperCase() : 'U';
   const userDisp = document.getElementById('user-display');
-  if (userDisp) userDisp.textContent = 'Aryan';
+  if (userDisp) userDisp.textContent = window.userId === 'MASTER_USER' ? 'Aryan' : window.userId;
 
   await loadChatsFromServer();
 

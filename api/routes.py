@@ -375,10 +375,12 @@ async def expire_cell(cell_id: str):
 @router.delete("/api/cells/{cell_id}")
 async def prune_cell(cell_id: str):
     """Permanently prunes a memory cell (Radical Transparency)."""
+    cell = get_cell_by_id(cell_id)
+    target_user = cell.get('user_id', 'MASTER_USER') if cell else 'MASTER_USER'
     success = delete_cell(cell_id)
     if not success:
         raise HTTPException(status_code=404, detail="Cell not found")
-    await monitor.broadcast_cell_event("MASTER_USER", {
+    await monitor.broadcast_cell_event(target_user, {
         "type": "CELL_PRUNED",
         "summary": f"Cell {cell_id} manually pruned from biological memory.",
         "cell_id": cell_id

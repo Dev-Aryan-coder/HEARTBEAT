@@ -271,6 +271,10 @@ Every response you produce MUST be an authoritative executive brief — deep, co
             "ai_response": ai_response,
             "cell_id": cell.cell_id,
             "status": cell.status,
+            "memory_tier": getattr(cell, 'memory_tier', 'bloodstream'),
+            "topic_id": getattr(cell, 'topic_id', 'general'),
+            "importance_score": getattr(cell, 'importance_score', 5),
+            "summary": getattr(cell, 'summary', ''),
             "image_url": image_url
         }
     except Exception as e:

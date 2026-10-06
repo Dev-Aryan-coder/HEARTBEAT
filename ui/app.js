@@ -59,7 +59,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     startNewChat();
   }
 
-  setInterval(refreshCells, 8000);
+  // Gentle background sync (30s fallback); WebSocket handles instantaneous updates
+  setInterval(() => {
+    if (!document.hidden) refreshCells();
+  }, 30000);
   refreshCells();
   autoResizeTextarea();
 });
@@ -568,8 +571,12 @@ async function refreshCells() {
 function updateTelemetryUI(tData) {
   const bpmEl = document.getElementById('telemetry-bpm');
   const flowEl = document.getElementById('telemetry-flow');
-  if (bpmEl && tData.heart_rate_bpm) bpmEl.textContent = tData.heart_rate_bpm;
-  if (flowEl && tData.circulating_active != null) flowEl.textContent = tData.circulating_active;
+  if (bpmEl && tData.heart_rate_bpm && bpmEl.textContent != String(tData.heart_rate_bpm)) {
+    bpmEl.textContent = tData.heart_rate_bpm;
+  }
+  if (flowEl && tData.circulating_active != null && flowEl.textContent != String(tData.circulating_active)) {
+    flowEl.textContent = tData.circulating_active;
+  }
 }
 
 function renderCells(cells) {
@@ -587,8 +594,19 @@ function renderCells(cells) {
     filtered = cells.filter(c => c.status !== 'expired');
   }
 
+  // 🛡️ ZERO-FLICKER DIFF: If cards haven't changed, DO NOT disturb DOM, scroll or hover
+  const fingerprint = filtered.map(c => `${c.cell_id}:${c.status}:${c.memory_tier}:${c.importance_score}`).join('|') + `::${currentTierFilter}`;
+  if (cellsListEl.dataset.renderFingerprint === fingerprint) {
+    return; // Exact match: Exit immediately without touching the DOM!
+  }
+  cellsListEl.dataset.renderFingerprint = fingerprint;
+
+  // Preserve user scroll position seamlessly
+  const previousScroll = cellsListEl.scrollTop;
+
   if (filtered.length === 0) {
     cellsListEl.innerHTML = `<div class="cells-empty"><p>No cells in ${currentTierFilter} tier</p></div>`;
+    cellsListEl.scrollTop = previousScroll;
     return;
   }
 
@@ -612,6 +630,9 @@ function renderCells(cells) {
       </div>
     `;
   }).join('');
+
+  // Restore scroll position
+  cellsListEl.scrollTop = previousScroll;
 }
 
 window.pruneCell = async function(cellId) {

@@ -38,10 +38,37 @@ function connectWebSocket() {
 
     try {
       const data = JSON.parse(event.data);
-      console.log('[WS] Live cell received:', data);
-      // Resilience check for various data shapes
-      if (data.cell_id || data.summary || data.type) {
-        injectLiveCell(data);
+      
+      // 1. Skip system handshakes
+      if (data.type === 'WELCOME' || data.type === 'PONG') {
+        return;
+      }
+
+      // 2. Metabolic Pulse: Update vital signs telemetry silently without touching DOM cards
+      if (data.type === 'METABOLIC_PULSE') {
+        if (data.telemetry && typeof updateTelemetryUI === 'function') {
+          updateTelemetryUI(data.telemetry);
+        }
+        return;
+      }
+
+      // 3. Cell Pruned: Remove specifically targetted card with smooth fade
+      if (data.type === 'CELL_PRUNED' && data.cell_id) {
+        const el = document.getElementById(`cell-card-${data.cell_id}`);
+        if (el) {
+          el.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+          el.style.opacity = '0';
+          el.style.transform = 'scale(0.95)';
+          setTimeout(() => el.remove(), 300);
+        }
+        return;
+      }
+
+      // 4. Cell Purified: Silently sync memory cells in background without resetting UI
+      if (data.type === 'CELL_PURIFIED' || data.cell_id) {
+        if (typeof refreshCells === 'function') {
+          refreshCells();
+        }
       }
     } catch (e) {
       console.warn('[WS] Failed to parse message:', e);
@@ -78,39 +105,10 @@ function updateConnectionStatus(online) {
 }
 
 function injectLiveCell(cell) {
-  // Update cells panel in real time — prepend new live cell
-  const listEl = document.getElementById('cells-list');
-  if (!listEl) return;
-
-  const empty = listEl.querySelector('.cells-empty');
-  if (empty) empty.remove();
-
-  const topic = (cell.topic_id || 'general').toLowerCase();
-  const topicClass = ['coding','health','finance','ai'].includes(topic) ? 'topic-' + topic : 'topic-general';
-  
-  // Handle both raw cell objects and event broadcast objects
-  const score = cell.importance_score || '—';
-  const summarySource = cell.summary || cell.user_content || cell.ai_response_summary || 'Live pulse detected…';
-  
-  const card = document.createElement('div');
-  card.className = 'cell-card';
-  card.style.borderColor = '#ffd6db';
-  card.innerHTML = `
-    <div class="cell-card-top">
-      <span class="cell-topic ${topicClass}">${escHtml(topic)}</span>
-      <span class="cell-score">${score}/10</span>
-    </div>
-    <div class="cell-summary">${escHtml(summarySource)}</div>
-  `;
-
-  listEl.prepend(card);
-
-  // Fade border back to normal after 2s
-  setTimeout(() => { card.style.borderColor = ''; }, 2000);
-
-  // Cap at 20 cells
-  const cards = listEl.querySelectorAll('.cell-card');
-  if (cards.length > 20) cards[cards.length - 1].remove();
+  // Graceful no-op fallback
+  if (typeof refreshCells === 'function') {
+    refreshCells();
+  }
 }
 
 function escHtml(str) {

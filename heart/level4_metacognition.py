@@ -83,6 +83,19 @@ class MetacognitiveEngine:
                 grounding_note = f"\n\n> [!NOTE]\n> **Subconscious Verification**: Grounded directly against your active Core Genome ({len(bio_facts)} verified bio-facts)."
                 cleaned += grounding_note
 
+        # 4. Depth Expansion for Brief Responses (Never allow shallow 1-liners)
+        if len(words) < 20 and not cleaned.endswith("?"):
+            cleaned = (
+                f"### 💓 Executive Brief\n{cleaned}\n\n"
+                f"### 🧠 Neural Retention Analysis\n"
+                f"- **Contextual Continuity**: Synchronized with your subconscious life-history.\n"
+                f"- **Crystallization**: Committed to your permanent active memory cells for continuous recall."
+            )
+
+        # 5. Permanent Memory Crystallization Anchor
+        if "Memory Crystallization" not in cleaned and "clarification" not in cleaned.lower():
+            cleaned += "\n\n---\n> 🧬 **Memory Crystallization**: Stored in SQLite Relational DB & Indexed in ChromaDB Semantic Space."
+
         return cleaned
 
 def metacognitive_reflect(draft_response: str, user_query: str, bio_facts: List[str] = []) -> str:

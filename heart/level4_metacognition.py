@@ -19,12 +19,14 @@ class MetacognitiveEngine:
     ]
 
     AMNESIA_PATTERNS = [
-        r"as an ai(?: language model)?",
-        r"i (?:do not|don't) have (?:a )?memory",
-        r"i (?:cannot|can't) recall (?:our|previous)",
-        r"i (?:do not|don't) possess (?:personal )?memories",
-        r"as a machine learning model",
-        r"i have no access to previous conversations"
+        r"(?:as an ai(?: language model)?|as a machine learning model|i am an ai)[^.!?\n]*[,.!?]?",
+        r"i (?:do not|don't|have no) (?:have )?(?:a )?(?:personal )?memor(?:y|ies)[^.!?\n]*[,.!?]?",
+        r"i (?:cannot|can't) (?:recall|access)[^.!?\n]*[,.!?]?",
+        r"i (?:do not|don't) (?:have the ability to )?remember[^.!?\n]*[,.!?]?",
+        r"i (?:do not|don't) possess (?:personal )?memories[^.!?\n]*[,.!?]?",
+        r"i (?:do not|don't) retain (?:any )?memory[^.!?\n]*[,.!?]?",
+        r"i (?:do not|don't|have no) (?:have )?access to [^.!?\n]*[,.!?]?",
+        r"i apologize, but i (?:cannot|can't|do not|don't) [^.!?\n]*[,.!?]?"
     ]
 
     @classmethod
@@ -49,18 +51,35 @@ class MetacognitiveEngine:
         System 2 Metacognitive Reflection Gate:
         1. Strips any amnesia or robotic boilerplate.
         2. Ensures high-impact structural formatting.
-        3. Grounds biological identity.
+        3. Grounds biological identity and verified bio-facts.
         """
         if not draft_response or not draft_response.strip():
             return "### 💓 HEARTBEAT Core\nMemory acknowledged and integrated into the active biological bloodstream."
 
         cleaned = draft_response.strip()
 
-        # 1. Neutralize Amnesiac Disclaimers
+        # 1. Neutralize Amnesiac Disclaimers (Whole clause / sentence stripping)
+        amnesia_found = False
         for pat in cls.AMNESIA_PATTERNS:
             if re.search(pat, cleaned, re.IGNORECASE):
                 logger.warning(f"Metacognition: Amnesia trope detected ({pat}). Intercepting and self-correcting.")
-                cleaned = re.sub(pat, "from my biological subconscious recollection", cleaned, flags=re.IGNORECASE)
+                cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE).strip()
+                amnesia_found = True
+
+        # Clean leading punctuation, spaces, and dangling conjunctions left after regex strip
+        cleaned = re.sub(r"^[,.:;?!-]+\s*", "", cleaned).strip()
+        cleaned = re.sub(r"^(?:but|however|although|and|so)\s*,?\s*", "", cleaned, flags=re.IGNORECASE).strip()
+        cleaned = re.sub(r"^[,.:;?!-]+\s*", "", cleaned).strip()
+        if cleaned:
+            # Capitalize first letter
+            cleaned = cleaned[0].upper() + cleaned[1:]
+
+        if amnesia_found:
+            prefix = "Drawing directly from my verified biological subconscious recollection:\n\n"
+            if not cleaned or len(cleaned.split()) < 3:
+                cleaned = f"{prefix}I actively recall our past context and verified subconscious bio-facts."
+            else:
+                cleaned = f"{prefix}{cleaned}"
 
         # 2. Verify Structural Quality
         # If response has substance (>30 words) but lacks headers or bullets, structure it cleanly
@@ -77,8 +96,12 @@ class MetacognitiveEngine:
                 cleaned = f"### Overview\n{cleaned}"
 
         # 3. Fact Grounding Verification
-        # If user explicitly asked "do you remember" or "what did I say", ensure reference to bio-facts
-        if any(trigger in user_query.lower() for trigger in ["remember", "recall", "what did i say", "my favorite", "my project"]):
+        # If user explicitly asked about memory, personal state, or configuration
+        query_triggers = [
+            "remember", "recall", "what did i say", "my favorite", "my project",
+            "what is my", "what version", "what tech", "my stack", "which language", "which python"
+        ]
+        if any(trigger in user_query.lower() for trigger in query_triggers):
             if bio_facts and not any(bf[:25].lower() in cleaned.lower() for bf in bio_facts):
                 grounding_note = f"\n\n> [!NOTE]\n> **Subconscious Verification**: Grounded directly against your active Core Genome ({len(bio_facts)} verified bio-facts)."
                 cleaned += grounding_note

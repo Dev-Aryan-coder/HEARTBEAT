@@ -30,10 +30,30 @@ async def persist_purified_cell(cell: BloodCell):
             vault.save_link(link)
 
 def get_semantic_memory(user_id: str, query: str, limit: int = 5):
-    """Retrieves long-term semantic context for the LLM."""
+    """Retrieves long-term semantic context for the LLM, guaranteed active-only."""
     chroma = get_chroma_manager()
-    res = chroma.search_related(query, n_results=limit, user_id=user_id)
-    return res
+    res = chroma.search_related(query, n_results=limit * 2, user_id=user_id)
+    if not res:
+        return []
+    
+    # State Supremacy Filter: Cross-reference SQLite so expired/superseded cells never leak
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        active_res = []
+        for hit in res:
+            cell_id = hit.get("id")
+            cursor.execute("SELECT status FROM blood_cells WHERE cell_id = ?", (cell_id,))
+            row = cursor.fetchone()
+            # If found in DB, must be active (not expired or dormant)
+            if row and row["status"] != "active":
+                continue
+            active_res.append(hit)
+            if len(active_res) >= limit:
+                break
+        return active_res
+    except Exception:
+        return res[:limit]
 
 def list_user_data_inventory(user_id: str):
     """Returns a full inventory summary for the user."""

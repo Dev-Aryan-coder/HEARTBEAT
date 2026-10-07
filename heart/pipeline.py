@@ -100,15 +100,32 @@ async def run_pipeline(raw_cell: BloodCell, context_messages: List[str] = [], pr
         # Supersede older active cells that share same topic or core keywords
         try:
             active_cells = get_cells_by_user(raw_cell.user_id, status="active")
+            new_topic = (raw_cell.topic_id or "").strip().lower()
+            new_kw = set(str(k).strip().lower() for k in (raw_cell.keywords or []))
+            
             for old_c in active_cells:
-                # Same topic collision check (avoid self)
-                if old_c.get("cell_id") != raw_cell.cell_id and old_c.get("topic_id") == raw_cell.topic_id:
-                    logger.info(f"FACT SUPREMACY: Superseding old cell {old_c['cell_id']} with new truth {raw_cell.cell_id}")
+                if old_c.get("cell_id") == raw_cell.cell_id:
+                    continue
+                
+                old_topic = (old_c.get("topic_id") or "").strip().lower()
+                old_kw = set(str(k).strip().lower() for k in (old_c.get("keywords") or []))
+                
+                # 1. Exact topic collision (excluding generic buckets)
+                topic_match = bool(new_topic and new_topic != "general" and old_topic and old_topic != "general" and old_topic == new_topic)
+                
+                # 2. Core keyword overlap collision (e.g., both contain 'python', 'version', or 'database')
+                stop_words = {"general", "user", "fact", "subconscious", "memory", "status", "project", "code", "system"}
+                substantive_overlap = (new_kw & old_kw) - stop_words
+                keyword_match = len(substantive_overlap) >= 2
+                
+                if topic_match or keyword_match:
+                    reason = f"topic '{new_topic}'" if topic_match else f"keywords {substantive_overlap}"
+                    logger.info(f"FACT SUPREMACY: Superseding old cell {old_c['cell_id']} with new truth {raw_cell.cell_id} due to {reason}")
                     supersede_cell(old_c["cell_id"], raw_cell.cell_id)
                     # Broadcast to dashboard
                     await monitor.broadcast_cell_event(raw_cell.user_id, {
                         "type": "FACT_SUPREMACY",
-                        "summary": f"Overwriting outdated memory for topic '{raw_cell.topic_id}' with new truth.",
+                        "summary": f"Overwriting outdated memory ({reason}) with verified new truth.",
                         "old_cell_id": old_c["cell_id"],
                         "new_cell_id": raw_cell.cell_id
                     })

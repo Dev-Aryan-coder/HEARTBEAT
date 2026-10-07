@@ -55,9 +55,14 @@ class ChromaManager:
             if user_id:
                 where_filter["user_id"] = user_id
 
+            total_elements = self.collection.count()
+            if total_elements == 0:
+                return []
+            fetch_k = max(1, min(n_results, total_elements))
+
             results = self.collection.query(
                 query_embeddings=[query_embedding],
-                n_results=n_results,
+                n_results=fetch_k,
                 where=where_filter if where_filter else None
             )
             
@@ -77,6 +82,14 @@ class ChromaManager:
         except Exception as e:
             logger.warning(f"ChromaDB search_related failed gracefully: {e}")
             return []
+
+    def delete_cell(self, cell_id: str):
+        """Evicts a cell from vector store when superseded or pruned (State Supremacy)."""
+        try:
+            self.collection.delete(ids=[cell_id])
+            logger.info(f"Evicted cell {cell_id} from ChromaDB")
+        except Exception as e:
+            logger.warning(f"ChromaDB delete_cell gracefully handled: {e}")
 
 # Singleton instance for high-performance access
 _chroma_instance = None

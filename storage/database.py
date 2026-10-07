@@ -99,6 +99,7 @@ def save_message(msg_id: str, chat_id: str, user_id: str, role: str, content: st
     conn.commit()
 
 def save_cell(cell: BloodCell) -> None:
+    ensure_user(cell.user_id)
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -196,6 +197,12 @@ def delete_cell(cell_id: str) -> bool:
     cursor.execute("DELETE FROM link_vault WHERE cell_id = ?", (cell_id,))
     cursor.execute("DELETE FROM blood_cells WHERE cell_id = ?", (cell_id,))
     conn.commit()
+    # Evict from vector memory
+    try:
+        from storage.chroma_client import get_chroma_manager
+        get_chroma_manager().delete_cell(cell_id)
+    except Exception:
+        pass
     return cursor.rowcount > 0
 
 def update_cell_tier(cell_id: str, memory_tier: str) -> bool:
@@ -216,6 +223,12 @@ def supersede_cell(old_cell_id: str, new_cell_id: str) -> bool:
         WHERE cell_id = ?
     """, (new_cell_id, old_cell_id))
     conn.commit()
+    # Synchronize Vector Store (ChromaDB) to prevent associative memory contamination
+    try:
+        from storage.chroma_client import get_chroma_manager
+        get_chroma_manager().delete_cell(old_cell_id)
+    except Exception:
+        pass
     return cursor.rowcount > 0
 
 def decay_cell_importance(cell_id: str, decay_amount: int = 1) -> Optional[int]:

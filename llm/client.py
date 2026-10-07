@@ -107,10 +107,9 @@ openrouter_breaker = CircuitBreaker("OpenRouterSecondary", failure_threshold=3, 
 def _map_model_for_groq(model: str) -> str:
     """Maps generic or legacy model slugs to valid ultra-low-latency Groq endpoints."""
     m_lower = model.lower()
-    if "120b" in m_lower or "70b" in m_lower or "brain" in m_lower or "purifier" in m_lower:
+    if "70b" in m_lower or "120b" in m_lower or "brain" in m_lower or "purifier" in m_lower:
         return "llama-3.3-70b-versatile"
-    if "20b" in m_lower or "8b" in m_lower or "valve" in m_lower or "nervous" in m_lower or "fast" in m_lower:
-        return "llama-3.1-8b-instant"
+    # llama3-8b-8192 or llama-3.3-70b-versatile for high reliability
     return "llama-3.3-70b-versatile"
 
 def _map_model_for_openrouter(model: str, is_large_context: bool = False) -> str:
@@ -193,13 +192,14 @@ async def call_llm(key_env_name: str, model: str, messages: List[dict], json_mod
         or os.getenv("GROQ_API_KEY")
     )
 
-    openrouter_key = (
+    raw_or_key = (
         getattr(config, 'openrouter_api_key', None)
-        or getattr(config, 'fallback_key', None)
         or os.getenv("OPENROUTER_API_KEY")
-        or os.getenv("HEARTBEAT_FALLBACK_KEY")
         or os.getenv("HEARTBEAT_OPENROUTER_KEY")
+        or getattr(config, 'fallback_key', None)
     )
+    # Ensure OpenRouter key is not accidentally a Groq gsk_ key
+    openrouter_key = raw_or_key if (raw_or_key and not raw_or_key.startswith("gsk_")) else None
 
     # ── CONTEXT LENGTH INTELLIGENCE ──
     # Check if prompt exceeds normal context limits (> 10,000 chars) or asks for 1M / Lightning

@@ -58,7 +58,8 @@ class ChromaManager:
             total_elements = self.collection.count()
             if total_elements == 0:
                 return []
-            fetch_k = max(1, min(n_results, total_elements))
+            target_k = max(n_results * 5, 25) if where_filter else n_results
+            fetch_k = max(1, min(target_k, total_elements))
 
             results = self.collection.query(
                 query_embeddings=[query_embedding],

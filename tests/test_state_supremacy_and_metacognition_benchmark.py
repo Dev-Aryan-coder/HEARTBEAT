@@ -259,7 +259,48 @@ def test_benchmark_metacognitive_depth_expansion_and_crystallization():
     query = "Confirm my current runtime."
 
     audited = metacognitive_reflect(shallow_draft, query)
-
     assert "### 💓 Executive Brief" in audited
     assert "### 🧠 Neural Retention Analysis" in audited
     assert "Memory Crystallization" in audited
+
+
+def test_benchmark_nli_truth_arbitration():
+    """
+    Directly evaluates genuine Natural Language Inference (NLI) truth arbitration
+    on nuanced real-world contradiction vs coexistence scenarios.
+    """
+    from heart.nli_arbitrator import arbitrate_truth_supremacy
+
+    # 1. Real Contradiction: Migration
+    res1 = asyncio.run(arbitrate_truth_supremacy(
+        existing_fact="I use MySQL for all database storage.",
+        new_statement="We dropped MySQL and migrated our database to PostgreSQL."
+    ))
+    assert res1["supersedes"] is True, f"Expected supersedes=True, got {res1}"
+
+    # 2. Real Coexistence: Multilingual tooling (Must NOT supersede!)
+    res2 = asyncio.run(arbitrate_truth_supremacy(
+        existing_fact="I use Python 3.14 for my backend service.",
+        new_statement="I also started learning Rust for WebAssembly tools."
+    ))
+    assert res2["supersedes"] is False, f"Expected supersedes=False for complementary tool, got {res2}"
+
+
+def test_benchmark_metacognitive_technical_context_protection():
+    """
+    CRITICAL FALSE-POSITIVE TEST:
+    Ensures that when a user asks a genuine computer science question about AI,
+    the Metacognitive Gate does NOT censor legitimate technical explanations of AI.
+    """
+    technical_query = "How does an AI language model process tokens in transformers?"
+    technical_draft = (
+        "An AI language model processes text by converting tokens into numerical vectors "
+        "and applying multi-head self-attention mechanisms to determine contextual relationships."
+    )
+
+    audited = metacognitive_reflect(technical_draft, technical_query)
+
+    # Must preserve the technical computer science explanation without butchering
+    assert "ai language model" in audited.lower() or "ai" in audited.lower()
+    assert "tokens" in audited.lower()
+    assert "attention" in audited.lower()

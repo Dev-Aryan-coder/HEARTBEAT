@@ -24,13 +24,15 @@ import tkinter as tk
 from typing import List, Tuple
 
 class SparkOrbWidget:
-    def __init__(self, size: int = 160):
+    def __init__(self, size: int = 160, start_hidden: bool = False):
         self.size = size
         self.radius = (size - 20) // 2
         self.center_x = size // 2
         self.center_y = size // 2
         self.state = "idle"  # idle, listening, thinking, speaking
         self.running = True
+        self.is_visible = not start_hidden
+        self._auto_hide_after_id = None
         self.angle_offset = 0.0
         self.pulse_phase = 0.0
 
@@ -44,6 +46,9 @@ class SparkOrbWidget:
         self.transparent_key = "#010101"
         self.root.wm_attributes("-transparentcolor", self.transparent_key)
         self.root.config(bg=self.transparent_key)
+
+        if start_hidden:
+            self.root.withdraw()
 
         # Position at the top-middle of primary display
         screen_w = self.root.winfo_screenwidth()
@@ -106,6 +111,49 @@ class SparkOrbWidget:
         screen_w = self.root.winfo_screenwidth()
         x_pos = (screen_w - self.size) // 2
         self.root.geometry(f"{self.size}x{self.size}+{x_pos}+12")
+
+    def show_orb(self):
+        """Thread-safe reveal of the plasma orb window at top-center."""
+        def _show():
+            self.reset_to_top()
+            self.root.deiconify()
+            self.root.wm_attributes("-topmost", True)
+            self.is_visible = True
+        self.root.after(0, _show)
+
+    def hide_orb(self):
+        """Thread-safe concealment of the plasma orb window."""
+        def _hide():
+            self.root.withdraw()
+            self.is_visible = False
+        self.root.after(0, _hide)
+
+    def toggle_orb(self):
+        """Thread-safe visibility toggle."""
+        if self.is_visible:
+            self.hide_orb()
+        else:
+            self.show_orb()
+
+    def schedule_auto_hide(self, seconds: float = 15.0):
+        """Schedules the orb to automatically disappear after `seconds` of inactivity."""
+        def _do_schedule():
+            self.cancel_auto_hide()
+            ms = int(seconds * 1000)
+            def _auto_hide():
+                self.hide_orb()
+                self._auto_hide_after_id = None
+            self._auto_hide_after_id = self.root.after(ms, _auto_hide)
+        self.root.after(0, _do_schedule)
+
+    def cancel_auto_hide(self):
+        """Cancels any pending auto-hide timer."""
+        if self._auto_hide_after_id:
+            try:
+                self.root.after_cancel(self._auto_hide_after_id)
+            except Exception:
+                pass
+            self._auto_hide_after_id = None
 
     def set_state(self, new_state: str):
         if new_state in ("idle", "listening", "thinking", "speaking"):
@@ -241,15 +289,17 @@ class SparkOrbWidget:
 
 _GLOBAL_ORB_INSTANCE = None
 
-def launch_spark_orb_in_background():
+def launch_spark_orb_in_background(start_hidden: bool = False):
     """Launches the SPARK floating orb in a dedicated thread so it never blocks the voice assistant."""
     global _GLOBAL_ORB_INSTANCE
     if _GLOBAL_ORB_INSTANCE is not None:
+        if not start_hidden:
+            _GLOBAL_ORB_INSTANCE.show_orb()
         return _GLOBAL_ORB_INSTANCE
 
     def _runner():
         global _GLOBAL_ORB_INSTANCE
-        orb = SparkOrbWidget(size=160)
+        orb = SparkOrbWidget(size=160, start_hidden=start_hidden)
         _GLOBAL_ORB_INSTANCE = orb
         orb.run()
 
@@ -263,6 +313,35 @@ def set_orb_state(state: str):
     global _GLOBAL_ORB_INSTANCE
     if _GLOBAL_ORB_INSTANCE:
         _GLOBAL_ORB_INSTANCE.set_state(state)
+
+def show_spark_orb():
+    """Reveals the top-center floating plasma orb."""
+    global _GLOBAL_ORB_INSTANCE
+    if _GLOBAL_ORB_INSTANCE:
+        _GLOBAL_ORB_INSTANCE.show_orb()
+
+def hide_spark_orb():
+    """Conceals the floating plasma orb."""
+    global _GLOBAL_ORB_INSTANCE
+    if _GLOBAL_ORB_INSTANCE:
+        _GLOBAL_ORB_INSTANCE.hide_orb()
+
+def is_spark_orb_visible() -> bool:
+    """Returns True if the orb is currently visible on screen."""
+    global _GLOBAL_ORB_INSTANCE
+    return _GLOBAL_ORB_INSTANCE.is_visible if _GLOBAL_ORB_INSTANCE else False
+
+def schedule_spark_orb_auto_hide(seconds: float = 15.0):
+    """Schedules the orb to automatically disappear after `seconds` of silence."""
+    global _GLOBAL_ORB_INSTANCE
+    if _GLOBAL_ORB_INSTANCE:
+        _GLOBAL_ORB_INSTANCE.schedule_auto_hide(seconds)
+
+def cancel_spark_orb_auto_hide():
+    """Cancels auto-hide timer if user speaks or interacts."""
+    global _GLOBAL_ORB_INSTANCE
+    if _GLOBAL_ORB_INSTANCE:
+        _GLOBAL_ORB_INSTANCE.cancel_auto_hide()
 
 if __name__ == "__main__":
     print("⚡ Launching SPARK Siri-style Plasma Orb at top-middle of screen...")

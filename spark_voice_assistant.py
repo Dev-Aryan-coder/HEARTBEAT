@@ -92,10 +92,23 @@ NEURAL_VOICE_MAP = {
 # VISUAL ORB INTERFACE BRIDGE (Siri-Style Dynamic Plasma Orb at Top-Center)
 # ---------------------------------------------------------------------------
 try:
-    from spark_orb_ui import set_orb_state, launch_spark_orb_in_background
+    from spark_orb_ui import (
+        set_orb_state,
+        launch_spark_orb_in_background,
+        show_spark_orb,
+        hide_spark_orb,
+        schedule_spark_orb_auto_hide,
+        cancel_spark_orb_auto_hide,
+        is_spark_orb_visible
+    )
 except Exception:
     def set_orb_state(state: str): pass
-    def launch_spark_orb_in_background(): pass
+    def launch_spark_orb_in_background(start_hidden: bool = False): pass
+    def show_spark_orb(): pass
+    def hide_spark_orb(): pass
+    def schedule_spark_orb_auto_hide(seconds: float = 15.0): pass
+    def cancel_spark_orb_auto_hide(): pass
+    def is_spark_orb_visible() -> bool: return False
 
 def play_chime(chime_type: str = "wake"):
     """Plays subtle futuristic acoustic feedback chimes in a background thread."""
@@ -161,9 +174,11 @@ def _play_audio_file(filepath: str, async_mode: bool = False):
                 ctypes.windll.winmm.mciSendStringW(f"close {alias}", None, 0, 0)
                 IS_SPEAKING = False
                 set_orb_state("idle")
+                schedule_spark_orb_auto_hide(15.0)
         except Exception:
             IS_SPEAKING = False
             set_orb_state("idle")
+            schedule_spark_orb_auto_hide(15.0)
 
     if async_mode:
         threading.Thread(target=_playback_worker, daemon=True).start()
@@ -180,6 +195,12 @@ def speak(text: str, async_mode: bool = False, chime: str = None, voice: str = N
     if not clean_text:
         return
     print(f"\n⚡ SPARK: {clean_text}\n")
+
+    # Reveal the top-middle plasma orb widget and cancel any auto-hide
+    cancel_spark_orb_auto_hide()
+    show_spark_orb()
+    set_orb_state("speaking")
+
     if chime:
         play_chime(chime)
 
@@ -214,12 +235,11 @@ def speak(text: str, async_mode: bool = False, chime: str = None, voice: str = N
             if not async_mode:
                 IS_SPEAKING = False
                 set_orb_state("idle")
+                schedule_spark_orb_auto_hide(15.0)
         except Exception as e:
             IS_SPEAKING = False
             set_orb_state("idle")
-            print(f"[Speech Notice: {e}]")
-        except Exception as e:
-            IS_SPEAKING = False
+            schedule_spark_orb_auto_hide(15.0)
             print(f"[Speech Notice: {e}]")
 
 def tool_set_jarvis_voice(voice_name: str) -> str:
@@ -2019,6 +2039,11 @@ async def process_autonomous_turn(user_input: str):
     """
     global conversation_history, ACTIVE_MODEL
 
+    # Awaken and reveal orb in thinking mode
+    cancel_spark_orb_auto_hide()
+    show_spark_orb()
+    set_orb_state("thinking")
+
     print(f"\n🗣️ Master Aryan > {user_input}")
     
     # 0. Dynamic Cognitive Model Routing
@@ -2153,6 +2178,10 @@ def listen_for_voice():
         r.non_speaking_duration = 0.4
         r.dynamic_energy_threshold = True
 
+        cancel_spark_orb_auto_hide()
+        show_spark_orb()
+        set_orb_state("listening")
+
         with sr.Microphone() as source:
             print("\n🎙️ [MONITORING EAR] Listening to your voice... (Speak or say 'Spark')")
             play_chime("wake")
@@ -2185,6 +2214,11 @@ def listen_for_voice():
 # 6. MAIN CLI & COMMAND LOOP
 # ---------------------------------------------------------------------------
 async def main():
+    if "--sentinel" in sys.argv:
+        from spark_sentinel_daemon import run_sentinel_daemon
+        run_sentinel_daemon()
+        return
+
     print("=" * 68)
     print("       ⚡ SPARK: MASTER ARYAN'S 100% AUTONOMOUS AI COMPANION")
     print("         (NO FAKING • NO SHORTCUTS • REAL OS ACTUATORS)")

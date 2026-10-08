@@ -36,61 +36,48 @@ def is_microphone_available() -> Tuple[bool, str]:
     except Exception as e:
         return False, str(e)
 
+_AMBIENT_BASELINE = 150.0
+
 def capture_phrase_from_mic(
-    timeout: float = 6.0,
+    timeout: float = 5.0,
     phrase_time_limit: float = 8.0,
-    silence_limit: float = 0.8
+    silence_limit: float = 0.7
 ) -> Optional[sr.AudioData]:
     """
-    Listens to the laptop microphone in real-time with Voice Activity Detection (VAD).
-    1. Measures ambient background noise.
-    2. Waits for Master Aryan to start speaking (timeout).
-    3. Records while Master Aryan speaks.
-    4. Automatically endpoints when Master Aryan pauses (silence_limit).
+    Zero-delay streaming microphone capture with rolling ambient baseline.
+    Instantly detects speech start without 0.3s blocking gap.
     """
-    # 1. Calibrate ambient baseline (0.3s)
-    try:
-        baseline_chunks = int(0.3 / CHUNK_DURATION)
-        calib_data = sd.rec(baseline_chunks * CHUNK_SAMPLES, samplerate=SAMPLE_RATE, channels=CHANNELS, dtype='int16')
-        sd.wait()
-        baseline_rms = np.sqrt(np.mean(np.square(calib_data.astype(np.float32))))
-        trigger_threshold = max(baseline_rms * 2.2, 450.0)
-    except Exception:
-        trigger_threshold = 500.0
-
+    global _AMBIENT_BASELINE
     recorded_chunks = []
     speaking_started = False
     silence_chunks_count = 0
     max_silence_chunks = int(silence_limit / CHUNK_DURATION)
     max_total_chunks = int(phrase_time_limit / CHUNK_DURATION)
-    timeout_chunks = int(timeout / CHUNK_DURATION) if timeout else 9999
 
     start_wait = time.time()
 
-    # Open continuous low-latency audio input stream
     try:
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS, dtype='int16') as stream:
-            elapsed_chunks = 0
-            while elapsed_chunks < (max_total_chunks + timeout_chunks):
+            while True:
                 chunk, overflowed = stream.read(CHUNK_SAMPLES)
-                elapsed_chunks += 1
-                rms = np.sqrt(np.mean(np.square(chunk.astype(np.float32))))
+                rms = float(np.sqrt(np.mean(np.square(chunk.astype(np.float32)))))
 
                 if not speaking_started:
-                    # Waiting for voice start
+                    # Update rolling noise floor
+                    _AMBIENT_BASELINE = 0.85 * _AMBIENT_BASELINE + 0.15 * min(rms, 400.0)
+                    trigger_threshold = max(_AMBIENT_BASELINE * 1.45, 180.0)
+
                     if rms > trigger_threshold:
                         speaking_started = True
                         recorded_chunks.append(chunk.copy())
                     else:
                         if timeout and (time.time() - start_wait) > timeout:
-                            return None  # Timed out waiting for speech
+                            return None
                 else:
-                    # Speech in progress
                     recorded_chunks.append(chunk.copy())
-                    if rms < (trigger_threshold * 0.75):
+                    if rms < max(_AMBIENT_BASELINE * 1.25, 150.0):
                         silence_chunks_count += 1
                         if silence_chunks_count >= max_silence_chunks:
-                            # User stopped speaking
                             break
                     else:
                         silence_chunks_count = 0
@@ -110,29 +97,27 @@ def capture_phrase_from_mic(
     return sr.AudioData(raw_bytes, SAMPLE_RATE, 2)
 
 def recognize_live_speech(
-    timeout: float = 6.0,
+    timeout: float = 5.0,
     phrase_time_limit: float = 8.0,
-    verify_speaker: bool = True
+    verify_speaker: bool = False
 ) -> Optional[str]:
     """
-    Captures from laptop mic, filters background noise, verifies speaker is Master Aryan,
-    and transcribes via Google Speech Recognition.
+    Captures live microphone audio, transcribes it, and optionally validates speaker voiceprint.
     """
     audio = capture_phrase_from_mic(timeout=timeout, phrase_time_limit=phrase_time_limit)
     if not audio:
         return None
 
-    # Biometric voice verification against Master Aryan's trained voiceprint
     if verify_speaker:
         try:
             from speaker_biometrics import verify_speaker_is_aryan
             raw = np.frombuffer(audio.get_raw_data(), dtype=np.int16).astype(np.float32) / 32768.0
-            is_aryan, score = verify_speaker_is_aryan(raw, sr=SAMPLE_RATE, threshold=0.68)
+            is_aryan, score = verify_speaker_is_aryan(raw, sr=SAMPLE_RATE, threshold=0.52)
             if not is_aryan:
-                print(f"🚫 [BIOMETRIC FILTER]: Non-Aryan voice/noise rejected (Score: {score*100:.1f}%)")
+                print(f"🚫 [BIOMETRIC FILTER]: Voice similarity {score*100:.1f}% below threshold. Ignored.")
                 return None
             else:
-                print(f"✅ [BIOMETRIC MATCH]: Master Aryan voice verified (Confidence: {score*100:.1f}%)")
+                print(f"✅ [BIOMETRIC MATCH]: Master Aryan verified (Similarity: {score*100:.1f}%)")
         except Exception:
             pass
 

@@ -117,7 +117,11 @@ class SparkOrbWidget:
         def _show():
             self.reset_to_top()
             self.root.deiconify()
+            self.root.overrideredirect(True)
             self.root.wm_attributes("-topmost", True)
+            self.root.lift()
+            self.root.focus_force()
+            self.root.update_idletasks()
             self.is_visible = True
         self.root.after(0, _show)
 

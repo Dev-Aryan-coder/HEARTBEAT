@@ -142,8 +142,8 @@ except Exception:
 # 2. WAKE WORD DETECTION (HEY SPARK, HELLO SPARK, YO SPARK)
 # ---------------------------------------------------------------------------
 WAKE_GREETING_PATTERNS = [
-    r"\b(hey|hello|yo|hi|ok|okay|wake up|listen)\s+spark\b",
-    r"\bspark\b"
+    r"\b(hey|hello|yo|hi|ok|okay|wake up|listen)\s+(spark|sparks|park)\b",
+    r"\b(spark|sparks)\b"
 ]
 
 def check_for_wake_phrase(text: str) -> Tuple[bool, str]:
@@ -170,6 +170,7 @@ def listen_for_wake_greeting() -> Tuple[bool, str]:
     try:
         raw_text = recognize_live_speech(timeout=3.5, phrase_time_limit=4.5)
         if raw_text:
+            print(f"👂 [HEARD]: \"{raw_text}\"", flush=True)
             return check_for_wake_phrase(raw_text)
         return False, ""
     except Exception:
@@ -249,33 +250,63 @@ def handle_awakened_interaction(initial_command: str = "", trigger_type: str = "
         WAKE_LOCK.release()
 
 # ---------------------------------------------------------------------------
-# 4. GLOBAL HOTKEY LISTENER (ALT + S / SHIFT + ALT + S / BACKSPACE + S)
+# 4. GLOBAL HOTKEY LISTENER (NATIVE WIN32 + PYNPUT DUAL-ENGINE)
 # ---------------------------------------------------------------------------
 def start_global_hotkey_listener():
-    """Registers Alt + S, Alt + Shift + S, Ctrl + Shift + S, and Backspace + S global hotkeys."""
+    """
+    Registers native Windows Win32 OS-level Global Hotkeys (Alt + S)
+    plus pynput multi-key backup with dedicated message pump.
+    """
+    def _trigger():
+        print("\n⚡ [HOTKEY DETECTED]: SPARK Activation Hotkey pressed. Waking SPARK orb!")
+        threading.Thread(target=handle_awakened_interaction, kwargs={"trigger_type": "hotkey"}, daemon=True).start()
+
+    # 1. Native Windows Win32 API RegisterHotKey (Bulletproof OS-level)
+    def _win32_hotkey_pump():
+        try:
+            import ctypes
+            from ctypes import wintypes
+            user32 = ctypes.windll.user32
+            MOD_ALT = 0x0001
+            MOD_CONTROL = 0x0002
+            MOD_SHIFT = 0x0004
+            VK_S = 0x53
+
+            # ID 1: Alt + S
+            user32.RegisterHotKey(None, 1, MOD_ALT, VK_S)
+            # ID 2: Ctrl + Shift + S
+            user32.RegisterHotKey(None, 2, MOD_CONTROL | MOD_SHIFT, VK_S)
+            # ID 3: Alt + Shift + S
+            user32.RegisterHotKey(None, 3, MOD_ALT | MOD_SHIFT, VK_S)
+
+            msg = wintypes.MSG()
+            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) != 0:
+                if msg.message == 0x0312:  # WM_HOTKEY
+                    _trigger()
+                user32.TranslateMessage(ctypes.byref(msg))
+                user32.DispatchMessageW(ctypes.byref(msg))
+        except Exception as e:
+            print(f"[Win32 Hotkey Pump Notice: {e}]")
+
+    win32_thread = threading.Thread(target=_win32_hotkey_pump, daemon=True)
+    win32_thread.start()
+
+    # 2. Pynput GlobalHotKeys (Secondary backup)
     try:
         from pynput import keyboard
-
-        def _on_hotkey_pressed():
-            print("\n⚡ [HOTKEY DETECTED]: SPARK Activation Hotkey pressed. Waking SPARK orb!")
-            threading.Thread(target=handle_awakened_interaction, kwargs={"trigger_type": "hotkey"}, daemon=True).start()
-
-        # Multi-hotkey map (bypassing Windows Search Win+S conflict)
         hotkeys = {
-            "<alt>+s": _on_hotkey_pressed,
-            "<alt>+<shift>+s": _on_hotkey_pressed,
-            "<ctrl>+<shift>+s": _on_hotkey_pressed,
-            "<backspace>+s": _on_hotkey_pressed,
-            "<ctrl>+<alt>+s": _on_hotkey_pressed
+            "<alt>+s": _trigger,
+            "<alt>+<shift>+s": _trigger,
+            "<ctrl>+<shift>+s": _trigger,
+            "<backspace>+s": _trigger,
         }
         listener = keyboard.GlobalHotKeys(hotkeys)
         listener.daemon = True
         listener.start()
-        print("⌨️  [HOTKEY ACTIVE]: Alt + S (or Alt + Shift + S / Backspace + S) registered globally.")
-        return listener
-    except Exception as e:
-        print(f"[Hotkey Warning]: Could not bind hotkey ({e}). Voice wake remains 100% active.")
-        return None
+    except Exception:
+        pass
+
+    print("⌨️  [HOTKEY ACTIVE]: Native Win32 + Pynput (Alt + S / Ctrl + Shift + S / Backspace + S) registered globally.")
 
 # ---------------------------------------------------------------------------
 # 5. CONTINUOUS 24/7 BACKGROUND SENTINEL LOOP

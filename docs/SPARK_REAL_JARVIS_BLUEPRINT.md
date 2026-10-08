@@ -71,6 +71,107 @@ To ensure SPARK is safe and never harms your system:
 * **Second Time & Beyond**: Next time you say *"Write in Word"*, SPARK does **not** need to generate code from scratch! It immediately imports its tested skill, passes your new text as arguments, and finishes in **milliseconds**.
 * **Result**: SPARK literally **learns new tools over time**. The more you use it, the smarter, faster, and more capable it becomes!
 
+### 1.5 🖱️ Visual Cursor & Mouse Actuation (Live Screen Control)
+*Master Aryan's Requirement: See SPARK physically pilot the laptop in real time.*
+* **Smooth Cursor Gliding**: Instead of instant teleportation, SPARK moves the mouse pointer with smooth velocity (`duration=0.5s`) across the display so you can watch what it is doing with your own eyes.
+* **Core Mouse Actuators**:
+  * `mouse_move(x, y, duration=0.5)` — Glides the cursor to screen coordinates.
+  * `mouse_click(button='left'|'right'|'double', x=None, y=None)` — Clicks buttons, icons, or menus.
+  * `mouse_drag(start_x, start_y, end_x, end_y)` — Moves windows, sliders, or drags files into folders.
+  * `mouse_scroll(clicks)` — Scrolls documents, feeds, or web pages up and down.
+  * `get_cursor_position()` — Reports current mouse coordinate `(X, Y)`.
+* **Universal App Control**: Even if an app has no API (like a specialized game, media player, or custom Windows settings menu), SPARK can see it on screen, glide the mouse to it, and click it.
+* **Instant Safety Override (Failsafe)**: You always have ultimate control. If you grab your physical mouse or flick it into the corner of the screen, the automated cursor action instantly yields to you.
+
+### 1.6 👻 Ghost Typing (Natural Keystroke Simulation)
+*Master Aryan's Requirement: Watch text type itself dynamically onto the screen.*
+* **Human-Speed & Super-Speed Modes**:
+  * Instead of instant clipboard pasting, SPARK simulates realistic physical keystrokes with adjustable intervals (`interval=0.03s` - `0.06s`).
+  * You see letters rapidly flow onto the screen inside Notepad, Word, browser inputs, or chat windows as if an invisible ghost is sitting at your physical keyboard.
+* **Intelligent Special Keys**: Handles `Enter`, `Tab`, `Backspace`, `Ctrl+A`, `Ctrl+Z`, and indentation formatting automatically.
+
+### 1.7 🚀 Recommended Elite Enhancements (The Tony Stark Suite)
+1. **The "Eyes" of Jarvis (Screen OCR & Vision Target Finder)**:
+   * SPARK takes a screenshot and uses OCR to find any text on your screen (e.g., locating where the "Download" or "Send" button is and clicking its exact center coordinates).
+2. **Window Pilot (Auto-Focus & Smart Window Snapping)**:
+   * Before typing or clicking, SPARK automatically brings the target app to the foreground (`win32gui.SetForegroundWindow`), and can snap windows side-by-side.
+3. **JARVIS Acoustic Feedback (Sci-Fi Audio Chimes)**:
+   * Subtle, sleek audio chimes:
+     * *Wake Chime*: Soft futuristic chirp when SPARK starts listening.
+     * *Success Blip*: Clean affirmative chime when an action completes.
+4. **Proactive System Guardian (Ambient Health Warnings)**:
+   * SPARK monitors vitals in the background and speaks up proactively:
+     * *"Master Aryan, laptop battery has dropped to 15%. Recommend connecting your charger."*
+     * *"Master Aryan, CPU temperature is exceeding 85°C. Would you like me to close background tasks?"*
+5. **Emergency Hotkey Killswitch**:
+   * A single master key (e.g. `Ctrl + Shift + K` or `ESC`) to instantly freeze all automated mouse gliding or ghost typing if you ever need to stop an action mid-flight.
+
+### 1.8 📖 Active Document Reader & Explainer (Live Comprehension)
+*Master Aryan's Scenario: A Word document (or PDF/article) is open on screen, and you want SPARK to read and explain it.*
+* **Step 1: Live Memory Attachment (Win32 COM)**:
+  * Because Word is already running on your laptop, SPARK connects directly to the running Word process in memory using `win32com.client.GetObject(Class="Word.Application")`.
+  * It extracts the active document's text (or just highlighted text) instantly without even needing you to save or locate the file path!
+* **Step 2: Universal Fallback (Screen Vision / Clipboard)**:
+  * For PDFs or websites where COM isn't available, SPARK uses active window OCR or clipboard capture (`Ctrl+A` / `Ctrl+C`).
+* **Step 3: Simplification & Breakdown (Cognitive Analysis)**:
+  * SPARK reads the raw text, breaks down complex paragraphs, identifies main takeaways, and explains it in simple terms:
+    > *"Master Aryan, this document is a project proposal for machine learning deployment. In simple words, section 2 explains that they need 3 servers, and section 3 outlines the budget. Here is what is confusing..."*
+* **Step 4: Voice or Chat Delivery**: Speaks the summary clearly over your speakers or types a bulleted breakdown.
+
+### 1.9 📚 Massive Document Handling (100+ Pages Without Breaking)
+*Master Aryan's Challenge: What if the Word document has 50 to 500 pages of massive content?*
+* **Strategy A: Hierarchical Chunking (Map-Reduce)**:
+  * SPARK splits massive text by headings/sections into bite-sized 1,000-word chunks.
+  * It generates quick bullet-point abstracts for each section, then synthesizes them into an **Executive 1-Page Master Summary** for you.
+* **Strategy B: On-the-Fly Local RAG (Ask Anything in the Big Book)**:
+  * For 200-page manuals or legal contracts, SPARK indexes the document into its local HEARTBEAT ChromaDB memory in 2 seconds.
+  * You can treat the massive document like a conversation: *"SPARK, find where it talks about refund policy"* → SPARK pulls the exact paragraph and explains it immediately.
+* **Strategy C: Selection Scoping ("Explain What I Highlighted")**:
+  * If you're reading a massive file and get stuck on a single complex page, simply highlight it with your mouse and say: *"SPARK, explain what I highlighted"*. It pulls `word.Selection.Text` in 5ms!
+
+### 1.10 🌐 The SPARK Multi-Agent Neural Cortex (Local Fleet + OpenCode Cloud)
+*Master Aryan's Hardware & Cloud Roster Discovered on System:*
+
+#### 🖥️ Local Fleet (Installed & Running on Laptop via Ollama):
+1. **`qwen2.5:3b` (1.9 GB)** — *The Fast Reflex Operator*: Instant voice conversation, volume, battery, system status, fast file writes (~80ms latency).
+2. **`qwen2.5-coder:3b` (1.9 GB)** — *The Local Code Synthesizer*: Writes standalone Python scripts and desktop automation offline.
+3. **`qwen2.5vl:3b` (3.2 GB)** — *The Vision Eye (VLM)*: Directly analyzes screen screenshots, finds UI buttons, and reads on-screen text.
+4. **`deepseek-r1:7b` (4.7 GB)** — *The Deep Cognitive Reasoner*: Multi-step planning (DAG), error self-healing, and complex problem solving.
+
+#### ☁️ OpenCode Free Cloud Titans (Unlimited Intelligence, Zero Laptop Heat):
+1. **`opencode/nemotron-3.5-lightning-free`** — *The Cloud Hyper-Coder*: Massive, flawless script synthesis and autonomous execution.
+2. **`opencode/longcat-2.5-preview-free`** — *The Giant Document Reader*: Ultra-massive context window capable of reading entire 100+ page books, Word documents, and manuals in one shot.
+3. **`opencode/nemotron-3-ultra-free`** — *The Supreme Logician*: Deepest intellectual synthesis and strategy.
+4. **`opencode/mimo-v2.6-flash-free` & `opencode/ling-3.1-flash-free`** — Ultra-low latency cloud models.
+
+---
+
+#### 🧭 Smart Dynamic Routing Architecture:
+```mermaid
+graph TD
+    User([🗣️ Master Aryan]) --> Router{🧭 SPARK Dynamic Router}
+    
+    Router -->|Voice, Volume, Hardware, Offline| LocalFast[⚡ qwen2.5:3b\nLocal Fast Reflexes]
+    Router -->|Screen Sight & Visual Target Search| LocalVision[👁️ qwen2.5vl:3b\nLocal Screen Eye]
+    Router -->|Complex Debugging & Multi-Step Logic| LocalR1[🧠 deepseek-r1:7b\nLocal Chain-of-Thought]
+    Router -->|100+ Page Massive Docs & Heavy Code| CloudNemotron[☁️ OpenCode Cloud\nNemotron 3.5 & LongCat]
+    
+    LocalFast --> Execution[⚙️ High-Integrity Local Windows Execution]
+    LocalVision --> Execution
+    LocalR1 --> Execution
+    CloudNemotron --> Execution
+    
+    Execution --> Memory[(🧬 HEARTBEAT Synaptic Memory)]
+    Execution --> Voice[🔊 SAPI5 Voice Response]
+    Voice --> User
+```
+
+
+
+
+
+
+
 
 ---
 

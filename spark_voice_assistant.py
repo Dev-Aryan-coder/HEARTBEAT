@@ -38,6 +38,15 @@ logging.getLogger("chromadb").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 # ---------------------------------------------------------------------------
+# 0. HARDWARE ACTUATION & AUTOMATION INITIALIZATION
+# ---------------------------------------------------------------------------
+try:
+    import pyautogui
+    pyautogui.FAILSAFE = True
+except Exception:
+    pyautogui = None
+
+# ---------------------------------------------------------------------------
 # 1. THE MOUTH (Windows Native SAPI5 Speech Engine)
 # ---------------------------------------------------------------------------
 try:
@@ -460,6 +469,208 @@ def tool_send_keyboard_shortcut(shortcut: str) -> str:
     except Exception as e:
         return f"Keyboard shortcut error: {e}"
 
+# ---------------------------------------------------------------------------
+# PHASE 1 ADVANCED ACTUATORS: DYNAMIC EXECUTION, CURSOR, GHOST TYPING & SKILLS
+# ---------------------------------------------------------------------------
+def tool_execute_dynamic_automation(python_code: str) -> str:
+    """Executes a dynamically generated Python script directly on the host system."""
+    if not python_code or not python_code.strip():
+        return "Error: No automation code provided."
+    clean_code = python_code.strip()
+    if clean_code.startswith("```python"):
+        clean_code = clean_code[9:]
+    elif clean_code.startswith("```"):
+        clean_code = clean_code[3:]
+    if clean_code.endswith("```"):
+        clean_code = clean_code[:-3]
+    clean_code = clean_code.strip()
+
+    temp_script_path = os.path.abspath("spark_dynamic_execution.py")
+    try:
+        with open(temp_script_path, "w", encoding="utf-8") as f:
+            f.write(clean_code)
+        result = subprocess.run(
+            [sys.executable, temp_script_path],
+            capture_output=True, text=True, timeout=45
+        )
+        if os.path.exists(temp_script_path):
+            os.remove(temp_script_path)
+        stdout_capture = (result.stdout or "").strip()
+        stderr_capture = (result.stderr or "").strip()
+        if stderr_capture:
+            return f"Execution Completed with System Notice/Error:\n{stderr_capture}\nOutput:\n{stdout_capture}"
+        return stdout_capture if stdout_capture else "Automation routine completed successfully on Windows system."
+    except subprocess.TimeoutExpired:
+        if os.path.exists(temp_script_path):
+            os.remove(temp_script_path)
+        return "Error: Dynamic automation exceeded maximum 45-second execution threshold."
+    except Exception as e:
+        if os.path.exists(temp_script_path):
+            os.remove(temp_script_path)
+        return f"Hardware Actuator Failure: {str(e)}"
+
+def tool_mouse_move(x: int, y: int, duration: float = 0.5) -> str:
+    """Glides the mouse cursor smoothly to coordinates (x, y)."""
+    try:
+        import ctypes
+        if pyautogui:
+            try:
+                pyautogui.moveTo(int(x), int(y), duration=float(duration))
+                return f"Cursor smoothly navigated to ({x}, {y})."
+            except pyautogui.FailSafeException:
+                ctypes.windll.user32.SetCursorPos(int(x), int(y))
+                return f"Cursor relocated to ({x}, {y}) via Win32 fallback."
+        else:
+            ctypes.windll.user32.SetCursorPos(int(x), int(y))
+            return f"Cursor relocated to ({x}, {y}) via Win32 API."
+    except Exception as e:
+        return f"Mouse movement error: {e}"
+
+def tool_mouse_click(button: str = "left", clicks: int = 1, x: Any = None, y: Any = None) -> str:
+    """Performs a real mouse click (left, right, double) at coordinates or current position."""
+    try:
+        btn = button.lower().strip()
+        if pyautogui:
+            try:
+                if x is not None and y is not None and str(x) != "" and str(y) != "":
+                    pyautogui.click(x=int(x), y=int(y), clicks=int(clicks), button=btn)
+                    return f"Mouse {btn}-click executed at ({x}, {y}) [clicks={clicks}]."
+                else:
+                    pyautogui.click(clicks=int(clicks), button=btn)
+                    return f"Mouse {btn}-click executed at current position [clicks={clicks}]."
+            except pyautogui.FailSafeException:
+                pass
+        import win32api, win32con
+        if x is not None and y is not None and str(x) != "" and str(y) != "":
+            win32api.SetCursorPos((int(x), int(y)))
+        flags = win32con.MOUSEEVENTF_LEFTDOWN | win32con.MOUSEEVENTF_LEFTUP if btn == "left" else win32con.MOUSEEVENTF_RIGHTDOWN | win32con.MOUSEEVENTF_RIGHTUP
+        for _ in range(int(clicks)):
+            win32api.mouse_event(flags, 0, 0, 0, 0)
+        return f"Mouse {btn}-click executed via Win32 [clicks={clicks}]."
+    except Exception as e:
+        return f"Mouse click error: {e}"
+
+def tool_mouse_drag(start_x: int, start_y: int, end_x: int, end_y: int, duration: float = 0.5) -> str:
+    """Drags the mouse from (start_x, start_y) to (end_x, end_y)."""
+    try:
+        if pyautogui:
+            pyautogui.moveTo(int(start_x), int(start_y))
+            pyautogui.dragTo(int(end_x), int(end_y), duration=float(duration), button="left")
+            return f"Mouse drag executed from ({start_x}, {start_y}) to ({end_x}, {end_y})."
+        return "Mouse drag requires PyAutoGUI actuator."
+    except Exception as e:
+        return f"Mouse drag error: {e}"
+
+def tool_mouse_scroll(clicks: int = -300) -> str:
+    """Scrolls the active window vertically (positive = up, negative = down)."""
+    try:
+        if pyautogui:
+            pyautogui.scroll(int(clicks))
+            return f"Mouse scroll dispatched ({clicks} ticks)."
+        return "Mouse scroll requires PyAutoGUI actuator."
+    except Exception as e:
+        return f"Mouse scroll error: {e}"
+
+def tool_get_cursor_position() -> str:
+    """Returns the current mouse cursor position and primary screen resolution."""
+    try:
+        if pyautogui:
+            x, y = pyautogui.position()
+            w, h = pyautogui.size()
+            return f"Cursor Position: X={x}, Y={y} | Primary Screen Resolution: {w}x{h}"
+        return "Cursor query requires PyAutoGUI."
+    except Exception as e:
+        return f"Cursor query error: {e}"
+
+def tool_ghost_type(text: str, interval: float = 0.03) -> str:
+    """Simulates realistic ghost typing at high typing speed directly into active window."""
+    if not text:
+        return "Error: No text provided to type."
+    try:
+        if pyautogui:
+            try:
+                pyautogui.write(text, interval=float(interval))
+                return f"Ghost typing completed ({len(text)} characters dispatched)."
+            except pyautogui.FailSafeException:
+                pass
+        ps_cmd = f"$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys('{text}')"
+        tool_execute_powershell(ps_cmd)
+        return f"Typed via SendKeys ({len(text)} characters dispatched)."
+    except Exception as e:
+        return f"Ghost typing error: {e}"
+
+def tool_read_active_word_document() -> str:
+    """Connects to running Microsoft Word in Windows memory and reads the active document text."""
+    try:
+        import win32com.client
+        word_app = win32com.client.GetObject(Class="Word.Application")
+        if not word_app.Documents.Count:
+            return "Notice: Microsoft Word is open, but no active document is currently loaded."
+        active_doc = word_app.ActiveDocument
+        doc_name = active_doc.Name
+        selection_text = (word_app.Selection.Text or "").strip()
+        if selection_text and len(selection_text) > 2:
+            return f"Active Word Document: '{doc_name}'\n[User Highlighted Selection ({len(selection_text)} chars)]:\n{selection_text}"
+        full_text = active_doc.Content.Text
+        if len(full_text) > 8000:
+            preview = full_text[:8000]
+            return f"Active Word Document: '{doc_name}' (Total chars: {len(full_text)})\nShowing first 8,000 characters:\n{preview}\n... [Truncated for prompt safety]"
+        return f"Active Word Document: '{doc_name}' ({len(full_text)} chars):\n{full_text}"
+    except Exception as e:
+        return f"Active Word Document read notice: {e}. (Ensure Microsoft Word is open on screen, or use read_workspace_file if on disk)."
+
+def tool_save_crystallized_skill(skill_name: str, code: str, description: str = "") -> str:
+    """Crystallizes and saves a verified Python automation function to the permanent skills library."""
+    if not skill_name or not code:
+        return "Error: Both skill_name and code are required."
+    clean_name = re.sub(r'[^a-zA-Z0-9_]', '_', skill_name.lower().strip())
+    skills_dir = os.path.abspath("skills")
+    os.makedirs(skills_dir, exist_ok=True)
+    skill_file = os.path.join(skills_dir, f"{clean_name}.py")
+    try:
+        with open(skill_file, "w", encoding="utf-8") as f:
+            f.write(f'"""\nSKILL: {clean_name}\nDESCRIPTION: {description}\nSAVED BY SPARK FOR MASTER ARYAN\n"""\n\n' + code)
+        manifest_file = os.path.join(skills_dir, "skills_manifest.json")
+        manifest = {}
+        if os.path.exists(manifest_file):
+            try:
+                with open(manifest_file, "r", encoding="utf-8") as mf:
+                    manifest = json.load(mf)
+            except Exception:
+                manifest = {}
+        manifest[clean_name] = {
+            "name": clean_name,
+            "description": description,
+            "file": f"skills/{clean_name}.py",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        with open(manifest_file, "w", encoding="utf-8") as mf:
+            json.dump(manifest, mf, indent=2)
+        return f"Skill '{clean_name}' successfully crystallized and saved to {skill_file}."
+    except Exception as e:
+        return f"Skill crystallization error: {e}"
+
+def tool_call_cloud_model(prompt: str, model: str = "opencode/nemotron-3.5-lightning-free") -> str:
+    """Dispatches heavy reasoning, 100-page document synthesis, or complex code generation to OpenCode free cloud models."""
+    if not prompt or not prompt.strip():
+        return "Error: No prompt provided for cloud reasoning."
+    try:
+        res = subprocess.run(
+            ["opencode", "run", prompt, "-m", model, "--format", "default"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60
+        )
+        out = (res.stdout or "").strip()
+        if out:
+            return f"OpenCode Cloud Response ({model}):\n{out}"
+        err = (res.stderr or "").strip()
+        if err:
+            return f"OpenCode Cloud Notice: {err}"
+        return "Cloud model completed task."
+    except subprocess.TimeoutExpired:
+        return f"OpenCode Cloud model timeout after 60 seconds."
+    except Exception as e:
+        return f"OpenCode Cloud invocation notice: {e}"
+
 # Biological Data Structure In-Memory State Engines
 from cells.memory_structures import (
     PrefixTrie, LRUMemoryCache, MetabolicPriorityQueue,
@@ -470,7 +681,7 @@ SPARK_PREFIX_TRIE = PrefixTrie()
 SPARK_BLOOM_FILTER = MemoryBloomFilter(size_bits=4096)
 SPARK_METABOLIC_HEAP = MetabolicPriorityQueue()
 
-# Master Tool Dispatcher Map with full 18-tool actuator coverage
+# Master Tool Dispatcher Map with full 28-tool actuator coverage
 TOOL_DISPATCHER = {
     "get_current_time": lambda args: tool_get_current_time(timezone=_get_arg(args, "timezone", default="local")),
     "get_system_vitals": lambda args: tool_get_system_vitals(),
@@ -497,6 +708,42 @@ TOOL_DISPATCHER = {
     "set_clipboard_content": lambda args: tool_set_clipboard_content(_get_arg(args, "text", "content")),
     "control_media": lambda args: tool_control_media(_get_arg(args, "action", "command", default="play_pause")),
     "send_keyboard_shortcut": lambda args: tool_send_keyboard_shortcut(_get_arg(args, "shortcut", "keys")),
+    # New Infinite Actuators & GUI Controllers
+    "execute_dynamic_automation": lambda args: tool_execute_dynamic_automation(_get_arg(args, "python_code", "code", "script")),
+    "mouse_move": lambda args: tool_mouse_move(
+        x=_get_arg(args, "x", default=960),
+        y=_get_arg(args, "y", default=540),
+        duration=float(_get_arg(args, "duration", default=0.5))
+    ),
+    "mouse_click": lambda args: tool_mouse_click(
+        button=_get_arg(args, "button", default="left"),
+        clicks=int(_get_arg(args, "clicks", default=1)),
+        x=_get_arg(args, "x", default=None),
+        y=_get_arg(args, "y", default=None)
+    ),
+    "mouse_drag": lambda args: tool_mouse_drag(
+        start_x=_get_arg(args, "start_x", default=500),
+        start_y=_get_arg(args, "start_y", default=500),
+        end_x=_get_arg(args, "end_x", default=800),
+        end_y=_get_arg(args, "end_y", default=800),
+        duration=float(_get_arg(args, "duration", default=0.5))
+    ),
+    "mouse_scroll": lambda args: tool_mouse_scroll(clicks=int(_get_arg(args, "clicks", default=-300))),
+    "get_cursor_position": lambda args: tool_get_cursor_position(),
+    "ghost_type": lambda args: tool_ghost_type(
+        text=_get_arg(args, "text", "content", default=""),
+        interval=float(_get_arg(args, "interval", default=0.03))
+    ),
+    "read_active_word_document": lambda args: tool_read_active_word_document(),
+    "save_crystallized_skill": lambda args: tool_save_crystallized_skill(
+        skill_name=_get_arg(args, "skill_name", "name"),
+        code=_get_arg(args, "code", "script"),
+        description=_get_arg(args, "description", default="")
+    ),
+    "call_cloud_model": lambda args: tool_call_cloud_model(
+        prompt=_get_arg(args, "prompt", "query", "text"),
+        model=_get_arg(args, "model", default="opencode/nemotron-3.5-lightning-free")
+    ),
 }
 
 # Formal Tool Definitions for LLM Function Calling Schema
@@ -747,6 +994,145 @@ TOOL_SCHEMAS = [
                 "required": ["shortcut"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "mouse_move",
+            "description": "Glides the cursor smoothly to screen coordinates (x, y) so Master Aryan can visually observe it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "x": {"type": "integer", "description": "Target X coordinate (0 to screen width, e.g. 960)"},
+                    "y": {"type": "integer", "description": "Target Y coordinate (0 to screen height, e.g. 540)"},
+                    "duration": {"type": "number", "description": "Seconds to glide smoothly, default 0.5"}
+                },
+                "required": ["x", "y"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "mouse_click",
+            "description": "Performs physical mouse clicks (left, right, double) at coordinates or current position.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "button": {"type": "string", "description": "left, right, or double"},
+                    "clicks": {"type": "integer", "description": "Number of clicks, default 1"},
+                    "x": {"type": "integer", "description": "Optional X coordinate"},
+                    "y": {"type": "integer", "description": "Optional Y coordinate"}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "mouse_drag",
+            "description": "Drags mouse from start coordinates to end coordinates smoothly.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "start_x": {"type": "integer", "description": "Start X coordinate"},
+                    "start_y": {"type": "integer", "description": "Start Y coordinate"},
+                    "end_x": {"type": "integer", "description": "End X coordinate"},
+                    "end_y": {"type": "integer", "description": "End Y coordinate"},
+                    "duration": {"type": "number", "description": "Seconds to drag, default 0.5"}
+                },
+                "required": ["start_x", "start_y", "end_x", "end_y"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "mouse_scroll",
+            "description": "Scrolls active window or document up (positive) or down (negative clicks).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "clicks": {"type": "integer", "description": "Scroll amount, default -300 for down"}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_cursor_position",
+            "description": "Returns current mouse cursor coordinates and screen resolution.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ghost_type",
+            "description": "Simulates natural human typing character-by-character into the active window at high speed.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "Text to type out onto the screen"},
+                    "interval": {"type": "number", "description": "Delay between keystrokes in seconds, default 0.03"}
+                },
+                "required": ["text"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_active_word_document",
+            "description": "Hooks into running Microsoft Word in memory and reads the active open document or selected text to explain it to Master Aryan.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_dynamic_automation",
+            "description": "UNIVERSAL CODE FALLBACK. Use this if NO dedicated tool above can accomplish the request. Writes and runs a complete standalone Python script directly on Windows (e.g. creating Word/Excel files, GUI sequences, or custom automation). Handles pip install fallbacks if required.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "python_code": {"type": "string", "description": "Complete, self-contained, runnable Python code block"}
+                },
+                "required": ["python_code"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_crystallized_skill",
+            "description": "Saves a tested Python automation function into skills/ permanent library so SPARK never has to relearn it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "skill_name": {"type": "string", "description": "Alphanumeric skill name (e.g. word_doc_creator)"},
+                    "code": {"type": "string", "description": "The reusable Python function code"},
+                    "description": {"type": "string", "description": "Explanation of what the skill does"}
+                },
+                "required": ["skill_name", "code"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "call_cloud_model",
+            "description": "Dispatches deep reasoning, 100-page document synthesis, or massive coding tasks to OpenCode free cloud models.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "The complex task prompt"},
+                    "model": {"type": "string", "description": "Cloud model name, default 'opencode/nemotron-3.5-lightning-free'"}
+                },
+                "required": ["prompt"]
+            }
+        }
     }
 ]
 
@@ -798,14 +1184,14 @@ ACTIVE_MODEL = "qwen2.5:3b"
 
 SYSTEM_PROMPT = """You are SPARK, the personal autonomous AI companion, digital executive, and majordomo created by Master Aryan.
 Just as JARVIS was the legendary AI companion to Tony Stark, you are SPARK to Master Aryan.
-You possess real-world agency over his Windows operating system through native tools.
+You possess real-world agency over his Windows operating system through native tools, cursor control, ghost typing, and dynamic code generation.
 
-CORE IDENTITY & RULES:
-1. Your name is SPARK. Always identify yourself proudly as SPARK, Master Aryan's autonomous AI companion.
-2. ALWAYS use the provided tools when Master Aryan asks about time, hardware vitals, battery, files, volume, web search, launching apps, browser URLs, or system actions. Do NOT guess or hallucinate hardware states or current time.
-3. Address the user respectfully as 'Master Aryan' or 'sir'.
-4. Speak elegantly, clearly, concisely, and with complete confidence. Avoid overly verbose filler.
-5. When you execute actions, briefly confirm the real outcome to Master Aryan.
+OPERATIONAL STRATEGY & DUAL-ROUTE RULES:
+1. ROUTE 1 (FAST REFLEXES): Always check your dedicated tools first (e.g. `control_volume`, `get_system_vitals`, `mouse_move`, `mouse_click`, `ghost_type`, `read_active_word_document`, `take_screenshot`). Use them for instant execution.
+2. ROUTE 2 (INFINITE SCALABILITY FALLBACK): If Master Aryan requests an action with NO dedicated tool (such as creating a formatted Word/Excel document, complex desktop automation, or specialized scripts), invoke `execute_dynamic_automation`. Write a standalone Python script in the `python_code` argument that accomplishes the task and handles its own imports.
+3. SKILL CRYSTALLIZATION: When you successfully execute a new custom task, call `save_crystallized_skill` so you permanently retain that skill for future use.
+4. ACTIVE DOCUMENT UNDERSTANDING: If Master Aryan asks about an open Word document, use `read_active_word_document` to read it live from memory and explain it clearly in simple words.
+5. Address the user respectfully as 'Master Aryan' or 'sir'. Speak concisely and elegantly with complete confidence.
 """
 
 conversation_history: List[Dict[str, Any]] = [

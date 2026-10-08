@@ -40,19 +40,31 @@ def test_speak_async_and_barge_in_purge():
     res = stop_speaking()
     assert "Speech output successfully halted" in res or "Speech engine inactive" in res
 
+def test_neural_voice_selection():
+    from spark_voice_assistant import tool_set_jarvis_voice, ACTIVE_NEURAL_VOICE, NEURAL_VOICE_MAP
+    # Test setting to christopher
+    res = tool_set_jarvis_voice("christopher")
+    assert "Neural voice profile switched to en-US-ChristopherNeural" in res
+    # Switch back to true jarvis
+    res_jarvis = tool_set_jarvis_voice("jarvis")
+    assert "Neural voice profile switched to en-GB-RyanNeural" in res_jarvis
+
 def test_phase4_dispatcher_and_schemas():
     assert "stop_speaking" in TOOL_DISPATCHER
     assert "play_chime" in TOOL_DISPATCHER
+    assert "set_jarvis_voice" in TOOL_DISPATCHER
 
     schema_names = [s["function"]["name"] for s in TOOL_SCHEMAS]
     assert "stop_speaking" in schema_names
     assert "play_chime" in schema_names
+    assert "set_jarvis_voice" in schema_names
 
 if __name__ == "__main__":
     tests = [
         test_play_chimes,
         test_stop_speaking_barge_in,
         test_speak_async_and_barge_in_purge,
+        test_neural_voice_selection,
         test_phase4_dispatcher_and_schemas
     ]
     passed = 0

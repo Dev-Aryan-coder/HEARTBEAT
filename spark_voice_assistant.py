@@ -55,13 +55,20 @@ except Exception:
     keyboard = None
 
 # ---------------------------------------------------------------------------
-# 1. THE MOUTH & ACOUSTIC PRESENCE (Windows SAPI5, Barge-In & Acoustic Chimes)
+# 1. THE MOUTH & ACOUSTIC PRESENCE (Neural JARVIS Voice + SAPI5 Fallback + Barge-In)
 # ---------------------------------------------------------------------------
 import threading
+import ctypes
+
 try:
     import winsound
 except Exception:
     winsound = None
+
+try:
+    import edge_tts
+except Exception:
+    edge_tts = None
 
 try:
     import win32com.client
@@ -72,6 +79,14 @@ except Exception:
     speaker = None
 
 IS_SPEAKING = False
+ACTIVE_NEURAL_VOICE = "en-GB-RyanNeural"  # True JARVIS archetype: Deep, mature, warm, articulate British
+NEURAL_VOICE_MAP = {
+    "jarvis": "en-GB-RyanNeural",
+    "ryan": "en-GB-RyanNeural",
+    "christopher": "en-US-ChristopherNeural",  # Deep, mature, authoritative & responsible
+    "thomas": "en-GB-ThomasNeural",            # Formal, mature, calm British
+    "guy": "en-US-GuyNeural"                   # Warm, deep, friendly American
+}
 
 def play_chime(chime_type: str = "wake"):
     """Plays subtle futuristic acoustic feedback chimes in a background thread."""
@@ -96,30 +111,90 @@ def play_chime(chime_type: str = "wake"):
     threading.Thread(target=_beep, daemon=True).start()
 
 def stop_speaking() -> str:
-    """Immediately interrupts and purges any ongoing speech (Barge-In)."""
+    """Immediately interrupts and purges any ongoing speech playback (Barge-In)."""
     global IS_SPEAKING
     IS_SPEAKING = False
+    # Stop native Windows MCI audio stream
+    try:
+        ctypes.windll.winmm.mciSendStringW("stop spark_speech_stream", None, 0, 0)
+        ctypes.windll.winmm.mciSendStringW("close spark_speech_stream", None, 0, 0)
+    except Exception:
+        pass
+
+    # Stop fallback SAPI5
     if speaker:
         try:
-            # SVSFPurgeBeforeSpeak = 2 clears audio queue instantly
             speaker.Speak("", 2)
-            play_chime("interrupt")
-            return "Speech output successfully halted via Barge-In."
-        except Exception as e:
-            return f"Stop speaking error: {e}"
-    return "Speech engine inactive."
+        except Exception:
+            pass
 
-def speak(text: str, async_mode: bool = False, chime: str = None):
-    """Speaks text aloud using Windows Native Voice with optional acoustic chime and async dispatch."""
+    play_chime("interrupt")
+    return "Speech output successfully halted via Barge-In."
+
+def _play_audio_file(filepath: str, async_mode: bool = False):
+    """Plays an audio file via Win32 MCI with instant interruption support."""
+    global IS_SPEAKING
+    def _playback_worker():
+        global IS_SPEAKING
+        try:
+            IS_SPEAKING = True
+            alias = "spark_speech_stream"
+            ctypes.windll.winmm.mciSendStringW(f"close {alias}", None, 0, 0)
+            open_cmd = f'open "{filepath}" type mpegvideo alias {alias}'
+            res = ctypes.windll.winmm.mciSendStringW(open_cmd, None, 0, 0)
+            if res != 0:
+                ctypes.windll.winmm.mciSendStringW(f'open "{filepath}" alias {alias}', None, 0, 0)
+            
+            ctypes.windll.winmm.mciSendStringW(f"play {alias} wait" if not async_mode else f"play {alias}", None, 0, 0)
+            if not async_mode:
+                ctypes.windll.winmm.mciSendStringW(f"close {alias}", None, 0, 0)
+                IS_SPEAKING = False
+        except Exception:
+            IS_SPEAKING = False
+
+    if async_mode:
+        threading.Thread(target=_playback_worker, daemon=True).start()
+    else:
+        _playback_worker()
+
+def speak(text: str, async_mode: bool = False, chime: str = None, voice: str = None):
+    """
+    Speaks text aloud with high-fidelity Neural JARVIS human voice.
+    Deep, mature, friendly, and responsible. Gracefully falls back to SAPI5 if offline.
+    """
     global IS_SPEAKING
     clean_text = text.replace("**", "").replace("`", "").replace("#", "").strip()
+    if not clean_text:
+        return
     print(f"\n⚡ SPARK: {clean_text}\n")
     if chime:
         play_chime(chime)
-    if speaker and clean_text:
+
+    target_voice = voice or ACTIVE_NEURAL_VOICE
+    neural_success = False
+
+    if edge_tts:
+        try:
+            cache_dir = os.path.abspath("data/audio_cache")
+            os.makedirs(cache_dir, exist_ok=True)
+            ts = int(time.time() * 1000)
+            audio_path = os.path.join(cache_dir, f"spark_speech_{ts}.mp3")
+
+            async def _synthesize():
+                comm = edge_tts.Communicate(clean_text, target_voice, pitch="-2Hz", rate="+3%")
+                await comm.save(audio_path)
+
+            asyncio.run(_synthesize())
+            if os.path.exists(audio_path) and os.path.getsize(audio_path) > 100:
+                neural_success = True
+                _play_audio_file(audio_path, async_mode=async_mode)
+        except Exception:
+            neural_success = False
+
+    # Offline SAPI5 Fallback if neural synthesis was unreachable
+    if not neural_success and speaker:
         try:
             IS_SPEAKING = True
-            # SVSFlagsAsync = 1, SVSFDefault = 0
             flags = 1 if async_mode else 0
             speaker.Speak(clean_text, flags)
             if not async_mode:
@@ -127,6 +202,16 @@ def speak(text: str, async_mode: bool = False, chime: str = None):
         except Exception as e:
             IS_SPEAKING = False
             print(f"[Speech Notice: {e}]")
+
+def tool_set_jarvis_voice(voice_name: str) -> str:
+    """Configures SPARK's neural speaking voice personality (jarvis/ryan, christopher, thomas, guy)."""
+    global ACTIVE_NEURAL_VOICE
+    v_clean = voice_name.lower().strip()
+    if v_clean in NEURAL_VOICE_MAP:
+        ACTIVE_NEURAL_VOICE = NEURAL_VOICE_MAP[v_clean]
+        speak(f"Voice personality updated to {v_clean.capitalize()}. How may I assist you, Master Aryan?", chime="confirm")
+        return f"Neural voice profile switched to {ACTIVE_NEURAL_VOICE} ({v_clean.capitalize()})."
+    return f"Voice option '{voice_name}' not recognized. Available: jarvis (British Ryan), christopher (Deep US), thomas (British), guy (US)."
 
 
 def _get_arg(args: Any, *keys: str, default: Any = "") -> Any:
@@ -1277,6 +1362,7 @@ TOOL_DISPATCHER = {
     # Phase 4 Voice Presence & Barge-In
     "stop_speaking": lambda args: stop_speaking(),
     "play_chime": lambda args: (play_chime(_get_arg(args, "chime_type", "chime", default="wake")) or "Chime dispatched."),
+    "set_jarvis_voice": lambda args: tool_set_jarvis_voice(_get_arg(args, "voice_name", "voice", "name", default="jarvis")),
 }
 
 # Formal Tool Definitions for LLM Function Calling Schema
@@ -1786,6 +1872,20 @@ TOOL_SCHEMAS = [
                 "properties": {
                     "chime_type": {"type": "string", "description": "wake, success, or interrupt"}
                 }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_jarvis_voice",
+            "description": "Switches SPARK's neural speaking voice personality (jarvis/ryan: British Jarvis, christopher: Deep US, thomas: Calm British, guy: Warm US).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "voice_name": {"type": "string", "description": "Voice name: jarvis, christopher, thomas, or guy"}
+                },
+                "required": ["voice_name"]
             }
         }
     }

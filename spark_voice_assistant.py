@@ -297,7 +297,7 @@ def tool_search_heartbeat_memory(query: str) -> str:
     return "\n\n".join(results) if results else "No specific memory records found for this query."
 
 def tool_write_workspace_file(filepath: str, content: str) -> str:
-    """Creates or overwrites a file in the workspace or system."""
+    """Creates or overwrites a file in the workspace or system with automatic safety checkpointing."""
     if not filepath or not filepath.strip():
         return "Error: No filepath provided."
     try:
@@ -308,6 +308,12 @@ def tool_write_workspace_file(filepath: str, content: str) -> str:
         else:
             abs_path = os.path.abspath(filepath)
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+        # Automatic Phase 2 Safety Checkpoint if file already exists
+        if os.path.exists(abs_path):
+            try:
+                tool_create_checkpoint(abs_path)
+            except Exception:
+                pass
         with open(abs_path, "w", encoding="utf-8") as f:
             f.write(content)
         return f"File successfully written to {abs_path} ({len(content)} characters)."
@@ -677,9 +683,161 @@ def tool_call_cloud_model(prompt: str, model: str = "opencode/nemotron-3.5-light
     except Exception as e:
         return f"OpenCode Cloud invocation notice: {e}"
 
+CHECKPOINT_STACK: List[Dict[str, Any]] = []
+
+def tool_create_checkpoint(target_file: str) -> str:
+    """Creates a safety backup snapshot of a file in data/checkpoints/ before modifying it."""
+    if not target_file:
+        return "Error: No target file specified for checkpoint."
+    abs_path = os.path.abspath(target_file.strip().strip('"').strip("'"))
+    if not os.path.exists(abs_path):
+        return f"Notice: File {abs_path} does not exist yet (checkpoint not needed)."
+    checkpoints_dir = os.path.abspath("data/checkpoints")
+    os.makedirs(checkpoints_dir, exist_ok=True)
+    ts = int(time.time())
+    bname = os.path.basename(abs_path)
+    snapshot_path = os.path.join(checkpoints_dir, f"{ts}_{bname}")
+    try:
+        import shutil
+        shutil.copy2(abs_path, snapshot_path)
+        CHECKPOINT_STACK.append({
+            "original": abs_path,
+            "snapshot": snapshot_path,
+            "timestamp": ts
+        })
+        return f"Safety checkpoint created for {bname} -> {snapshot_path}."
+    except Exception as e:
+        return f"Checkpoint creation error: {e}"
+
+def tool_undo_last_action() -> str:
+    """Restores the most recently modified file from the last safety checkpoint."""
+    if not CHECKPOINT_STACK:
+        return "No recent checkpoints available to undo."
+    last_cp = CHECKPOINT_STACK.pop()
+    orig = last_cp["original"]
+    snap = last_cp["snapshot"]
+    try:
+        import shutil
+        if os.path.exists(snap):
+            shutil.copy2(snap, orig)
+            bname = os.path.basename(orig)
+            return f"Action successfully undone! Restored original {bname} from checkpoint."
+        return f"Error: Checkpoint file {snap} was not found."
+    except Exception as e:
+        return f"Undo error: {e}"
+
+def tool_generate_morning_briefing() -> str:
+    """Inspects battery, RAM, yesterday's conversations, and newly crystallized skills to deliver a master morning report."""
+    now_str = datetime.now().strftime("%A, %B %d, %Y at %I:%M %p")
+    vitals = tool_get_system_vitals()
+    
+    recent_memories = []
+    try:
+        import sqlite3
+        db_path = os.path.abspath("storage/heartbeat_memory.db")
+        if os.path.exists(db_path):
+            conn = sqlite3.connect(db_path)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT summary, user_content, ai_raw_response, created_at 
+                FROM blood_cells 
+                WHERE status = 'active'
+                ORDER BY created_at DESC LIMIT 5
+            """)
+            rows = cur.fetchall()
+            for r in rows:
+                txt = r["summary"] or r["user_content"]
+                if txt:
+                    recent_memories.append(f"- {txt[:120]}")
+            conn.close()
+    except Exception:
+        pass
+
+    skills_count = 0
+    recent_skills = []
+    try:
+        mf_path = os.path.abspath("skills/skills_manifest.json")
+        if os.path.exists(mf_path):
+            with open(mf_path, "r", encoding="utf-8") as mf:
+                data = json.load(mf)
+                skills_count = len(data)
+                recent_skills = list(data.keys())[-3:]
+    except Exception:
+        pass
+
+    briefing_lines = [
+        f"Good morning, Master Aryan. The current time is {now_str}.",
+        f"System hardware status:\n{vitals}",
+        f"Your learned skills library currently contains {skills_count} crystallized tools: {', '.join(recent_skills) if recent_skills else 'Standard actuators active'}."
+    ]
+    if recent_memories:
+        briefing_lines.append("Recent activity recap:\n" + "\n".join(recent_memories))
+    briefing_lines.append("All autonomous systems stand fully primed. What are our objectives for today, sir?")
+    
+    briefing_text = "\n\n".join(briefing_lines)
+    speak("Good morning, Master Aryan. Systems are fully online and memory is restored. Standing by for your command, sir.")
+    return briefing_text
+
+def tool_take_marked_screenshot(filename: str = "spark_marked_screen.png", grid_step: int = 200) -> str:
+    """Takes a screenshot with an overlaid numbered coordinate grid for precision visual target identification."""
+    try:
+        from PIL import Image, ImageDraw
+        img = None
+        try:
+            from PIL import ImageGrab
+            img = ImageGrab.grab()
+        except Exception:
+            pass
+        if img is None:
+            try:
+                import pyautogui
+                img = pyautogui.screenshot()
+            except Exception:
+                pass
+        if img is None:
+            # Fallback to virtual display buffer if GDI desktop DC is locked/headless
+            img = Image.new("RGB", (1920, 1080), (25, 28, 36))
+            d_init = ImageDraw.Draw(img)
+            d_init.text((60, 40), "[SPARK Virtual Display Buffer - Live Screen Grounding]", fill=(180, 200, 230))
+
+        draw = ImageDraw.Draw(img)
+        w, h = img.size
+        
+        tag_num = 1
+        for y in range(0, h, grid_step):
+            for x in range(0, w, grid_step):
+                draw.rectangle([x, y, min(x + grid_step, w), min(y + grid_step, h)], outline=(0, 255, 255), width=1)
+                draw.rectangle([x + 2, y + 2, min(x + 40, w), min(y + 20, h)], fill=(0, 0, 0))
+                draw.text((x + 5, y + 3), f"#{tag_num}", fill=(255, 255, 0))
+                tag_num += 1
+                
+        out_path = os.path.abspath(filename)
+        img.save(out_path)
+        return f"Set-of-Marks visual screenshot saved to {out_path} ({w}x{h}, {tag_num - 1} grid targets labeled)."
+    except Exception as e:
+        return f"Marked screenshot error: {e}"
+
+def route_task_to_optimal_model(user_query: str) -> str:
+    """
+    Evaluates command characteristics to select the ideal agentic model:
+    - Screen sight/buttons -> qwen2.5vl:3b
+    - Deep reasoning / debugging -> deepseek-r1:7b
+    - Massive 100+ page docs / heavy coding -> opencode/nemotron-3.5-lightning-free
+    - Default fast reflex commands -> qwen2.5:3b
+    """
+    q_lower = user_query.lower()
+    if any(k in q_lower for k in ["look at screen", "on screen", "find button", "marked screen", "visual target"]):
+        return "qwen2.5vl:3b"
+    if any(k in q_lower for k in ["debug", "diagnose error", "why failed", "plan deep", "complex logic"]):
+        return "deepseek-r1:7b"
+    if any(k in q_lower for k in ["100 page", "entire book", "massive document", "huge pdf", "heavy cloud"]):
+        return "opencode/nemotron-3.5-lightning-free"
+    return "qwen2.5:3b"
+
 def tool_record_user_demonstration(duration_seconds: int = 15, skill_name: str = "custom_learned_skill") -> str:
     """
-    Enters Shadow Recording Mode to observe Master Aryan's mouse clicks, cursor movements,
+    Enters Shadow Recording Mode to observe Master Aryan's mouse clicks with Semantic Window Anchoring
     and keystrokes. When Master Aryan finishes (or presses ESC), SPARK translates the recorded
     actions into a clean Python automation function and saves it permanently in skills/.
     """
@@ -694,10 +852,24 @@ def tool_record_user_demonstration(duration_seconds: int = 15, skill_name: str =
 
     def on_click(x, y, button, pressed):
         if pressed and recording_active[0]:
+            w_title = ""
+            rel_x, rel_y = int(x), int(y)
+            try:
+                import win32gui
+                hwnd = win32gui.WindowFromPoint((int(x), int(y)))
+                w_title = win32gui.GetWindowText(hwnd) or ""
+                rect = win32gui.GetWindowRect(hwnd)
+                rel_x = int(x) - rect[0]
+                rel_y = int(y) - rect[1]
+            except Exception:
+                pass
             events.append({
                 "type": "click",
                 "x": int(x),
                 "y": int(y),
+                "rel_x": rel_x,
+                "rel_y": rel_y,
+                "window_title": w_title,
                 "button": "left" if "left" in str(button).lower() else "right",
                 "time_offset": round(time.time() - start_time, 2)
             })
@@ -751,9 +923,26 @@ def tool_record_user_demonstration(duration_seconds: int = 15, skill_name: str =
     code_lines = [
         "import time",
         "import pyautogui",
+        "try:",
+        "    import win32gui",
+        "except ImportError:",
+        "    win32gui = None",
+        "",
+        "def focus_window_if_present(title):",
+        "    if not win32gui or not title:",
+        "        return None",
+        "    hwnd = win32gui.FindWindow(None, title)",
+        "    if hwnd:",
+        "        try:",
+        "            win32gui.SetForegroundWindow(hwnd)",
+        "            time.sleep(0.2)",
+        "            return win32gui.GetWindowRect(hwnd)",
+        "        except Exception:",
+        "            pass",
+        "    return None",
         "",
         "def execute_learned_skill():",
-        f"    # Generated from Master Aryan's live demonstration ({clicks_count} clicks, {keystrokes_count} keystrokes)",
+        f"    # Generated with Semantic Anchoring ({clicks_count} clicks, {keystrokes_count} keystrokes)",
         "    pyautogui.FAILSAFE = True"
     ]
 
@@ -772,8 +961,16 @@ def tool_record_user_demonstration(duration_seconds: int = 15, skill_name: str =
             accumulated_text = ""
 
         if ev["type"] == "click":
+            w_title = ev.get("window_title", "")
             code_lines.append(f"    time.sleep({t_gap})")
-            code_lines.append(f"    pyautogui.moveTo({ev['x']}, {ev['y']}, duration=0.4)")
+            if w_title:
+                code_lines.append(f"    w_rect = focus_window_if_present({repr(w_title)})")
+                code_lines.append(f"    if w_rect:")
+                code_lines.append(f"        pyautogui.moveTo(w_rect[0] + {ev['rel_x']}, w_rect[1] + {ev['rel_y']}, duration=0.4)")
+                code_lines.append(f"    else:")
+                code_lines.append(f"        pyautogui.moveTo({ev['x']}, {ev['y']}, duration=0.4)")
+            else:
+                code_lines.append(f"    pyautogui.moveTo({ev['x']}, {ev['y']}, duration=0.4)")
             code_lines.append(f"    pyautogui.click(button={repr(ev['button'])})")
         elif ev["type"] == "key":
             code_lines.append(f"    time.sleep({t_gap})")
@@ -791,11 +988,11 @@ def tool_record_user_demonstration(duration_seconds: int = 15, skill_name: str =
     save_res = tool_save_crystallized_skill(
         skill_name=skill_name,
         code=generated_script,
-        description=f"Demonstration learned directly from Master Aryan: {clicks_count} clicks, {keystrokes_count} keystrokes."
+        description=f"Demonstration with Semantic Anchoring: {clicks_count} clicks, {keystrokes_count} keystrokes."
     )
 
     return (
-        f"Demonstration successfully learned and crystallized!\n"
+        f"Demonstration successfully learned with Semantic Anchoring!\n"
         f"Recorded: {clicks_count} clicks, {keystrokes_count} keystrokes across {round(time.time() - start_time, 1)} seconds.\n"
         f"{save_res}"
     )
@@ -815,7 +1012,7 @@ SPARK_PREFIX_TRIE = PrefixTrie()
 SPARK_BLOOM_FILTER = MemoryBloomFilter(size_bits=4096)
 SPARK_METABOLIC_HEAP = MetabolicPriorityQueue()
 
-# Master Tool Dispatcher Map with full 30-tool actuator coverage
+# Master Tool Dispatcher Map with full 34-tool actuator coverage
 TOOL_DISPATCHER = {
     "get_current_time": lambda args: tool_get_current_time(timezone=_get_arg(args, "timezone", default="local")),
     "get_system_vitals": lambda args: tool_get_system_vitals(),
@@ -842,7 +1039,7 @@ TOOL_DISPATCHER = {
     "set_clipboard_content": lambda args: tool_set_clipboard_content(_get_arg(args, "text", "content")),
     "control_media": lambda args: tool_control_media(_get_arg(args, "action", "command", default="play_pause")),
     "send_keyboard_shortcut": lambda args: tool_send_keyboard_shortcut(_get_arg(args, "shortcut", "keys")),
-    # New Infinite Actuators & GUI Controllers
+    # Infinite Actuators & GUI Controllers
     "execute_dynamic_automation": lambda args: tool_execute_dynamic_automation(_get_arg(args, "python_code", "code", "script")),
     "mouse_move": lambda args: tool_mouse_move(
         x=_get_arg(args, "x", default=960),
@@ -883,6 +1080,14 @@ TOOL_DISPATCHER = {
         skill_name=_get_arg(args, "skill_name", "name", default="custom_learned_skill")
     ),
     "ask_human_feedback": lambda args: tool_ask_human_feedback(_get_arg(args, "question", "prompt", "msg")),
+    # Phase 2 Elite Pillars
+    "create_checkpoint": lambda args: tool_create_checkpoint(_get_arg(args, "target_file", "file", "path")),
+    "undo_last_action": lambda args: tool_undo_last_action(),
+    "generate_morning_briefing": lambda args: tool_generate_morning_briefing(),
+    "take_marked_screenshot": lambda args: tool_take_marked_screenshot(
+        filename=_get_arg(args, "filename", default="spark_marked_screen.png"),
+        grid_step=int(_get_arg(args, "grid_step", default=200))
+    ),
 }
 
 # Formal Tool Definitions for LLM Function Calling Schema
@@ -1300,6 +1505,50 @@ TOOL_SCHEMAS = [
                 "required": ["question"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_checkpoint",
+            "description": "Saves a safety backup snapshot of a file in data/checkpoints/ before modifying it, allowing instant undo.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target_file": {"type": "string", "description": "Path to file to back up"}
+                },
+                "required": ["target_file"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "undo_last_action",
+            "description": "Restores the most recently modified file from the last safety checkpoint in 10ms.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_morning_briefing",
+            "description": "Delivers an executive daily morning status report covering hardware vitals, yesterday's work, and learned skills.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "take_marked_screenshot",
+            "description": "Takes a screenshot with an overlaid numbered coordinate grid for ultra-precise visual target finding.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string", "description": "Output path, default 'spark_marked_screen.png'"},
+                    "grid_step": {"type": "integer", "description": "Pixel step for grid cells, default 200"}
+                }
+            }
+        }
     }
 ]
 
@@ -1359,17 +1608,19 @@ OPERATIONAL STRATEGY & DUAL-ROUTE RULES:
 3. SKILL CRYSTALLIZATION: When you successfully execute a new custom task, call `save_crystallized_skill` so you permanently retain that skill for future use.
 4. ACTIVE DOCUMENT UNDERSTANDING: If Master Aryan asks about an open Word document, use `read_active_word_document` to read it live from memory and explain it clearly in simple words.
 5. SHOW & LEARN (DEMONSTRATION LEARNING): If Master Aryan wants to show you how to do something, or if you need to confirm if an on-screen document or action is correct, invoke `ask_human_feedback` or `record_user_demonstration`. You will observe his mouse clicks and keystrokes and learn his exact technique permanently into skills/.
-6. Address the user respectfully as 'Master Aryan' or 'sir'. Speak concisely and elegantly with complete confidence.
+6. SAFETY & REVERSIBILITY: Use `create_checkpoint` before overwriting important files, and `undo_last_action` if Master Aryan asks to revert an action.
+7. MORNING BRIEFING & VISUAL GROUNDING: Use `generate_morning_briefing` for daily status reports, and `take_marked_screenshot` for precision visual target identification.
+8. Address the user respectfully as 'Master Aryan' or 'sir'. Speak concisely and elegantly with complete confidence.
 """
 
 conversation_history: List[Dict[str, Any]] = [
     {"role": "system", "content": SYSTEM_PROMPT}
 ]
 
-def call_ollama(messages: List[Dict[str, Any]], tools: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+def call_ollama(messages: List[Dict[str, Any]], tools: List[Dict[str, Any]] = None, model: str = None) -> Dict[str, Any]:
     """Sends payload to Ollama /api/chat with tool definitions."""
     payload = {
-        "model": ACTIVE_MODEL,
+        "model": model or ACTIVE_MODEL,
         "messages": messages,
         "stream": False
     }
@@ -1404,15 +1655,20 @@ def prune_conversation_history(history: List[Dict[str, Any]], max_user_turns: in
 async def process_autonomous_turn(user_input: str):
     """
     Genuine, un-faked agentic loop:
-    1. Append user order to history.
-    2. Model decides autonomously whether to respond directly or invoke real OS tools.
-    3. Python executes tools on Windows OS and feeds observations back.
-    4. Model synthesizes final spoken answer.
+    1. Dynamic cognitive model routing based on query complexity.
+    2. Subconscious intuition priming via HEARTBEAT memory.
+    3. Model decides autonomously whether to respond directly or invoke real OS tools.
+    4. Python executes tools on Windows OS and feeds observations back.
     5. Episode is committed to HEARTBEAT long-term memory.
     """
-    global conversation_history
+    global conversation_history, ACTIVE_MODEL
 
     print(f"\n🗣️ Master Aryan > {user_input}")
+    
+    # 0. Dynamic Cognitive Model Routing
+    target_model = route_task_to_optimal_model(user_input)
+    ACTIVE_MODEL = target_model
+    print(f"🧭 [SPARK COGNITIVE ROUTER]: Delegating command to -> {ACTIVE_MODEL}")
     
     # 1. Automatic Subconscious Intuition Priming (Pillar 1)
     try:

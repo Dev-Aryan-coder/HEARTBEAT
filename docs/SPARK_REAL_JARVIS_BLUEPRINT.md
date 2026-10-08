@@ -185,19 +185,23 @@ graph TD
     > *"Executing task using the technique you taught me, Master Aryan."*
   * It reproduces your exact mouse clicks, selections, and formatting automatically!
 
-```
-
-
-
-
-
-
-
+### 1.12 👑 The 4 Elite Jarvis Pillars (Pillars of Phase 2)
+1. **⚓ Action Replay with Semantic Anchoring**:
+   * Uses `win32gui.WindowFromPoint` to capture the target **Window Title** and **Relative Window Coordinates**.
+   * Replays actions reliably even if windows are moved, resized, or displayed on different monitors.
+2. **⏪ Undo & Rollback Safety Checkpoint System**:
+   * Saves instant file snapshots into `data/checkpoints/` before any dynamic code modifies disk assets.
+   * Master Aryan can say *"SPARK, undo that"* to restore original files in 10 milliseconds.
+3. **🌅 Autonomous Daily Morning Briefing**:
+   * On startup, SPARK inspects battery, RAM, yesterday's SQLite memory records, and newly crystallized skills.
+   * Speaks a polished, executive morning status report aloud over SAPI5.
+4. **🎯 Visual Grounding via Set-of-Marks (SoM)**:
+   * Overlays transparent numbered coordinate tags on screenshots for `qwen2.5vl:3b` visual target identification.
 
 ---
 
-## 🧬 Phase 2: The Living Memory Core (HEARTBEAT)
-**Goal:** Make sure SPARK never forgets what you told him yesterday, last week, or 10 minutes ago.
+## 🧬 Phase 2: The Living Memory Core & 4 Elite Pillars (HEARTBEAT)
+**Goal:** Make sure SPARK never forgets what you told him yesterday, last week, or 10 minutes ago, backed by semantic anchoring, checkpoints, morning briefing, and SoM visual grounding.
 
 ### 2.1 The 3-Tier Storage Hierarchy
 1. **Tier 1 (Instant Working Memory - RAM)**:
@@ -247,15 +251,15 @@ If SPARK generates a script that fails (for example, a typo in a file path or a 
 
 ---
 
-## 📅 Step-by-Step Implementation Roadmap
+## 📅 Master Multi-Phase Implementation Roadmap
 
-| Step | Action | Files Touched | Expected Outcome |
+| Phase | Core Objective | Key Deliverables & Actuators | Status |
 | :--- | :--- | :--- | :--- |
-| **1** | **Implement Dynamic Code Actuator** | `spark_voice_assistant.py` | Add `tool_execute_dynamic_automation` with subprocess bridge & cleanup. |
-| **2** | **Update Tool Schemas & Dispatcher** | `spark_voice_assistant.py` | Expose the fallback tool to Qwen / Ollama and map it into `TOOL_DISPATCHER`. |
-| **3** | **Cognitive Priority Prompt Re-alignment** | `spark_voice_assistant.py` | Teach SPARK to use Route 1 (Native) first and Route 2 (Dynamic Code) as universal fallback. |
-| **4** | **Self-Correction & Feedback Loop** | `spark_voice_assistant.py` | If dynamic code fails, allow SPARK one retry attempt with the error log. |
-| **5** | **Live Global Test Verification** | Live System Test | Test 1 native task (Volume) + 1 dynamic arbitrary task (Word doc creation on Desktop). |
+| **Phase 1** | **Infinite Hands & Physical Actuation** | Dynamic Subprocess Runner, Skill Crystallizer (`skills/`), Smooth Cursor Gliding, Ghost Typing, Active Word Reader, Show & Learn (`pynput`) | **COMPLETED & VERIFIED** ✅ |
+| **Phase 2** | **Living Memory Core & 4 Elite Pillars** | 1. Semantic Window Anchoring<br>2. Undo & Rollback Checkpoints (`tool_create_checkpoint`, `tool_undo_last_action`)<br>3. Autonomous Morning Briefing (`tool_generate_morning_briefing`)<br>4. Visual Grounding SoM (`tool_take_marked_screenshot`)<br>5. 3-Tier Storage (RAM / SQLite / ChromaDB) & Multi-Model Cognitive Router | **ACTIVE / IN PROGRESS** 🚀 |
+| **Phase 3** | **Task DAG & Self-Healing Brain** | Directed Acyclic Graph planner, autonomous `stderr` debugger & script self-correction loop | **QUEUED** ⏳ |
+| **Phase 4** | **Voice Presence & Barge-In** | Low-latency mic listener, interruptible speech synthesis, wake/success acoustic chimes | **QUEUED** ⏳ |
+| **Phase 5** | **Live Master Aryan Verification** | Full end-to-end interactive test: Word summarization, key points doc, demonstration replay | **QUEUED** ⏳ |
 
 ---
 

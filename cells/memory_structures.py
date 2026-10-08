@@ -278,3 +278,46 @@ class TaskExecutionDAG:
                         in_degree[successor] -= 1
 
         return batches
+
+    def execute_plan(self, dispatcher: Dict[str, Any], halt_on_failure: bool = False) -> Dict[str, Any]:
+        """
+        Executes all tasks wave-by-wave following topological order.
+        Returns execution log with per-task observation and overall success status.
+        """
+        batches = self.topological_sort()
+        results: Dict[str, Any] = {}
+        all_succeeded = True
+        
+        for batch_idx, batch in enumerate(batches):
+            for task_id in batch:
+                node = self.nodes[task_id]
+                tool_fn = dispatcher.get(node.tool_name)
+                if not tool_fn:
+                    results[task_id] = {
+                        "status": "error",
+                        "output": f"Tool '{node.tool_name}' not found in dispatcher."
+                    }
+                    all_succeeded = False
+                    if halt_on_failure:
+                        return {"success": False, "batches_executed": batch_idx + 1, "results": results}
+                    continue
+                try:
+                    res = tool_fn(node.args)
+                    results[task_id] = {
+                        "status": "success",
+                        "output": res
+                    }
+                except Exception as ex:
+                    results[task_id] = {
+                        "status": "error",
+                        "output": str(ex)
+                    }
+                    all_succeeded = False
+                    if halt_on_failure:
+                        return {"success": False, "batches_executed": batch_idx + 1, "results": results}
+                        
+        return {
+            "success": all_succeeded,
+            "batches_executed": len(batches),
+            "results": results
+        }

@@ -256,9 +256,9 @@ If SPARK generates a script that fails (for example, a typo in a file path or a 
 | Phase | Core Objective | Key Deliverables & Actuators | Status |
 | :--- | :--- | :--- | :--- |
 | **Phase 1** | **Infinite Hands & Physical Actuation** | Dynamic Subprocess Runner, Skill Crystallizer (`skills/`), Smooth Cursor Gliding, Ghost Typing, Active Word Reader, Show & Learn (`pynput`) | **COMPLETED & VERIFIED** ✅ |
-| **Phase 2** | **Living Memory Core & 4 Elite Pillars** | 1. Semantic Window Anchoring<br>2. Undo & Rollback Checkpoints (`tool_create_checkpoint`, `tool_undo_last_action`)<br>3. Autonomous Morning Briefing (`tool_generate_morning_briefing`)<br>4. Visual Grounding SoM (`tool_take_marked_screenshot`)<br>5. 3-Tier Storage (RAM / SQLite / ChromaDB) & Multi-Model Cognitive Router | **ACTIVE / IN PROGRESS** 🚀 |
-| **Phase 3** | **Task DAG & Self-Healing Brain** | Directed Acyclic Graph planner, autonomous `stderr` debugger & script self-correction loop | **QUEUED** ⏳ |
-| **Phase 4** | **Voice Presence & Barge-In** | Low-latency mic listener, interruptible speech synthesis, wake/success acoustic chimes | **QUEUED** ⏳ |
+| **Phase 2** | **Living Memory Core & 4 Elite Pillars** | 1. Semantic Window Anchoring<br>2. Undo & Rollback Checkpoints (`tool_create_checkpoint`, `tool_undo_last_action`)<br>3. Autonomous Morning Briefing (`tool_generate_morning_briefing`)<br>4. Visual Grounding SoM (`tool_take_marked_screenshot`)<br>5. 3-Tier Storage (RAM / SQLite / ChromaDB) & Multi-Model Cognitive Router | **COMPLETED & VERIFIED** ✅ |
+| **Phase 3** | **Task DAG & Self-Healing Brain** | Directed Acyclic Graph planner (`tool_execute_dag_plan`), Kahn's topological wave execution, autonomous `stderr` debugger (`heal_code_with_llm`, `tool_diagnose_and_heal_script`) & self-healing execution retry | **COMPLETED & VERIFIED** ✅ |
+| **Phase 4** | **Voice Presence & Barge-In** | Low-latency mic listener, interruptible speech synthesis, wake/success acoustic chimes | **READY FOR ACTIVATION** 🚀 |
 | **Phase 5** | **Live Master Aryan Verification** | Full end-to-end interactive test: Word summarization, key points doc, demonstration replay | **QUEUED** ⏳ |
 
 ---

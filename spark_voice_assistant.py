@@ -35,7 +35,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
 logging.getLogger("transformers").setLevel(logging.WARNING)
 logging.getLogger("chromadb").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
+# Global Neural Gateway Configurations
+OLLAMA_API_URL = "http://127.0.0.1:11434/api/chat"
+ACTIVE_MODEL = "qwen2.5:3b"
 
 # ---------------------------------------------------------------------------
 # 0. HARDWARE ACTUATION & AUTOMATION INITIALIZATION
@@ -482,10 +484,61 @@ def tool_send_keyboard_shortcut(shortcut: str) -> str:
         return f"Keyboard shortcut error: {e}"
 
 # ---------------------------------------------------------------------------
-# PHASE 1 ADVANCED ACTUATORS: DYNAMIC EXECUTION, CURSOR, GHOST TYPING & SKILLS
+# PHASE 1 & PHASE 3 ADVANCED ACTUATORS: DYNAMIC EXECUTION & SELF-HEALING ENGINE
 # ---------------------------------------------------------------------------
-def tool_execute_dynamic_automation(python_code: str) -> str:
-    """Executes a dynamically generated Python script directly on the host system."""
+def heal_code_with_llm(failed_code: str, error_traceback: str) -> str:
+    """
+    Submits failed dynamic script and stderr to the neural fleet
+    (prioritizing deepseek-r1:7b or qwen2.5:3b) to autonomously synthesize a corrected script.
+    """
+    repair_prompt = f"""You are the SPARK Autonomous Code Debugger for Master Aryan's Windows system.
+The following standalone Python automation script failed during execution.
+
+FAILED CODE:
+```python
+{failed_code}
+```
+
+SYSTEM ERROR TRACEBACK / STDERR:
+```
+{error_traceback}
+```
+
+DEBUGGING INSTRUCTIONS:
+1. Diagnose the exact failure cause (e.g. missing package, file path backslash escaping, Windows API error, invalid function call).
+2. If an external package is missing, include auto-install logic at the top using:
+   try:
+       import <package>
+   except ImportError:
+       import subprocess, sys
+       subprocess.check_call([sys.executable, "-m", "pip", "install", "<package>"])
+3. Output ONLY the complete, corrected, runnable Python script inside a single ```python ``` block. No chat, no introductory pleasantries, no markdown other than the python code block.
+"""
+    try:
+        repair_model = "deepseek-r1:7b" if "deepseek-r1:7b" in (ACTIVE_MODEL, "deepseek-r1:7b") else "qwen2.5:3b"
+        payload = {
+            "model": repair_model,
+            "messages": [{"role": "user", "content": repair_prompt}],
+            "stream": False
+        }
+        req = urllib.request.Request(
+            OLLAMA_API_URL,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            repaired = data.get("message", {}).get("content", "").strip()
+            if "```python" in repaired:
+                repaired = repaired.split("```python")[1].split("```")[0].strip()
+            elif "```" in repaired:
+                repaired = repaired.split("```")[1].split("```")[0].strip()
+            return repaired
+    except Exception:
+        return ""
+
+def tool_execute_dynamic_automation(python_code: str, enable_self_healing: bool = True) -> str:
+    """Executes a dynamically generated Python script directly on the host system with autonomous self-healing retry."""
     if not python_code or not python_code.strip():
         return "Error: No automation code provided."
     clean_code = python_code.strip()
@@ -509,6 +562,41 @@ def tool_execute_dynamic_automation(python_code: str) -> str:
             os.remove(temp_script_path)
         stdout_capture = (result.stdout or "").strip()
         stderr_capture = (result.stderr or "").strip()
+
+        # Check for clean success
+        if result.returncode == 0 and not ("Traceback (most recent call last):" in stderr_capture and not stdout_capture):
+            return stdout_capture if stdout_capture else "Automation routine completed successfully on Windows system."
+
+        # Phase 3 Autonomous Self-Healing Retry Loop
+        if enable_self_healing and (stderr_capture or result.returncode != 0):
+            print(f"🩹 [SPARK SELF-HEALING ENGINE]: Execution failure detected. Diagnosing traceback and synthesizing fix...")
+            err_for_diagnosis = stderr_capture or f"Process exited with non-zero code {result.returncode}"
+            repaired_code = heal_code_with_llm(clean_code, err_for_diagnosis)
+            if repaired_code and repaired_code.strip():
+                print(f"🔧 [SPARK SELF-HEALING ENGINE]: Fix synthesized. Executing repaired script...")
+                try:
+                    with open(temp_script_path, "w", encoding="utf-8") as f:
+                        f.write(repaired_code)
+                    retry_result = subprocess.run(
+                        [sys.executable, temp_script_path],
+                        capture_output=True, text=True, timeout=45
+                    )
+                    if os.path.exists(temp_script_path):
+                        os.remove(temp_script_path)
+                    retry_stdout = (retry_result.stdout or "").strip()
+                    retry_stderr = (retry_result.stderr or "").strip()
+                    if retry_result.returncode == 0:
+                        first_err_line = err_for_diagnosis.split("\n")[-1] or "Unknown exception"
+                        return (
+                            f"[AUTONOMOUSLY SELF-HEALED]\n"
+                            f"Initial Glitch: {first_err_line}\n"
+                            f"Remedy: Diagnosed issue, synthesized auto-install/repair, and executed successfully.\n"
+                            f"Output:\n{retry_stdout or 'Repaired automation executed cleanly.'}"
+                        )
+                except Exception:
+                    if os.path.exists(temp_script_path):
+                        os.remove(temp_script_path)
+
         if stderr_capture:
             return f"Execution Completed with System Notice/Error:\n{stderr_capture}\nOutput:\n{stdout_capture}"
         return stdout_capture if stdout_capture else "Automation routine completed successfully on Windows system."
@@ -520,6 +608,45 @@ def tool_execute_dynamic_automation(python_code: str) -> str:
         if os.path.exists(temp_script_path):
             os.remove(temp_script_path)
         return f"Hardware Actuator Failure: {str(e)}"
+
+def tool_diagnose_and_heal_script(broken_code: str, error_traceback: str) -> str:
+    """Explicitly diagnoses and repairs a broken Python script using SPARK's deep reasoning model."""
+    repaired = heal_code_with_llm(broken_code, error_traceback)
+    if repaired:
+        return f"Autonomous diagnosis complete. Repaired Python script synthesized:\n\n```python\n{repaired}\n```"
+    return "Error: Could not automatically synthesize repair for the provided code."
+
+def tool_execute_dag_plan(plan_json: str) -> str:
+    """
+    Executes a structured multi-step DAG plan with topological wave sorting.
+    plan_json format:
+    [
+        {"id": "step_1", "tool": "get_current_time", "args": {}},
+        {"id": "step_2", "tool": "get_system_vitals", "args": {}},
+        {"id": "step_3", "tool": "write_workspace_file", "args": {"filepath": "vitals.txt", "content": "status"}, "depends_on": ["step_1", "step_2"]}
+    ]
+    """
+    try:
+        if isinstance(plan_json, str):
+            plan = json.loads(plan_json)
+        else:
+            plan = plan_json
+        from cells.memory_structures import TaskExecutionDAG
+        dag = TaskExecutionDAG()
+        for item in plan:
+            task_id = item.get("id", f"task_{len(dag.nodes)}")
+            tool_name = item.get("tool", item.get("tool_name", ""))
+            args = item.get("args", item.get("parameters", {}))
+            depends_on = item.get("depends_on", [])
+            dag.add_task(task_id, tool_name, args, depends_on=depends_on)
+        exec_result = dag.execute_plan(TOOL_DISPATCHER, halt_on_failure=False)
+        return (
+            f"DAG Multi-Step Plan Executed across {exec_result['batches_executed']} topological wave(s).\n"
+            f"Overall Status: {'SUCCESS' if exec_result['success'] else 'PARTIAL/FAILURE'}\n"
+            f"Step Details: {json.dumps(exec_result['results'], indent=2)}"
+        )
+    except Exception as e:
+        return f"DAG Plan Execution error: {e}"
 
 def tool_mouse_move(x: int, y: int, duration: float = 0.5) -> str:
     """Glides the mouse cursor smoothly to coordinates (x, y)."""
@@ -1088,6 +1215,12 @@ TOOL_DISPATCHER = {
         filename=_get_arg(args, "filename", default="spark_marked_screen.png"),
         grid_step=int(_get_arg(args, "grid_step", default=200))
     ),
+    # Phase 3 Multi-Step Brain & Self-Healing
+    "diagnose_and_heal_script": lambda args: tool_diagnose_and_heal_script(
+        broken_code=_get_arg(args, "broken_code", "code", "script"),
+        error_traceback=_get_arg(args, "error_traceback", "error", "traceback", "stderr")
+    ),
+    "execute_dag_plan": lambda args: tool_execute_dag_plan(_get_arg(args, "plan_json", "plan", "tasks")),
 }
 
 # Formal Tool Definitions for LLM Function Calling Schema
@@ -1549,6 +1682,35 @@ TOOL_SCHEMAS = [
                 }
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "diagnose_and_heal_script",
+            "description": "Autonomously diagnoses a failed Python automation script using error tracebacks and synthesizes a bug-free repaired script.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "broken_code": {"type": "string", "description": "The Python code that failed or contains a bug"},
+                    "error_traceback": {"type": "string", "description": "The exact error message or stderr traceback"}
+                },
+                "required": ["broken_code", "error_traceback"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_dag_plan",
+            "description": "Executes a multi-step Directed Acyclic Graph (DAG) plan with topological wave sorting across dependent tools.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "plan_json": {"type": "string", "description": "JSON array of task objects with id, tool, args, and optional depends_on list"}
+                },
+                "required": ["plan_json"]
+            }
+        }
     }
 ]
 
@@ -1595,12 +1757,9 @@ async def persist_dialogue_to_heartbeat(user_text: str, spark_text: str):
 # ---------------------------------------------------------------------------
 # 4. THE AUTONOMOUS BRAIN (Ollama ReAct Agent Engine)
 # ---------------------------------------------------------------------------
-OLLAMA_API_URL = "http://127.0.0.1:11434/api/chat"
-ACTIVE_MODEL = "qwen2.5:3b"
-
 SYSTEM_PROMPT = """You are SPARK, the personal autonomous AI companion, digital executive, and majordomo created by Master Aryan.
 Just as JARVIS was the legendary AI companion to Tony Stark, you are SPARK to Master Aryan.
-You possess real-world agency over his Windows operating system through native tools, cursor control, ghost typing, and dynamic code generation.
+You possess real-world agency over his Windows operating system through native tools, cursor control, ghost typing, dynamic code generation, and multi-step cognitive planning.
 
 OPERATIONAL STRATEGY & DUAL-ROUTE RULES:
 1. ROUTE 1 (FAST REFLEXES): Always check your dedicated tools first (e.g. `control_volume`, `get_system_vitals`, `mouse_move`, `mouse_click`, `ghost_type`, `read_active_word_document`, `take_screenshot`). Use them for instant execution.
@@ -1610,7 +1769,8 @@ OPERATIONAL STRATEGY & DUAL-ROUTE RULES:
 5. SHOW & LEARN (DEMONSTRATION LEARNING): If Master Aryan wants to show you how to do something, or if you need to confirm if an on-screen document or action is correct, invoke `ask_human_feedback` or `record_user_demonstration`. You will observe his mouse clicks and keystrokes and learn his exact technique permanently into skills/.
 6. SAFETY & REVERSIBILITY: Use `create_checkpoint` before overwriting important files, and `undo_last_action` if Master Aryan asks to revert an action.
 7. MORNING BRIEFING & VISUAL GROUNDING: Use `generate_morning_briefing` for daily status reports, and `take_marked_screenshot` for precision visual target identification.
-8. Address the user respectfully as 'Master Aryan' or 'sir'. Speak concisely and elegantly with complete confidence.
+8. MULTI-STEP PLANNING & SELF-HEALING: If an operation requires multiple sequential or dependent steps, organize it via `execute_dag_plan` or topological tool sequences. If a script fails, invoke `diagnose_and_heal_script` to autonomously analyze stderr, synthesize the fix, and succeed without asking Master Aryan to write code.
+9. Address the user respectfully as 'Master Aryan' or 'sir'. Speak concisely and elegantly with complete confidence.
 """
 
 conversation_history: List[Dict[str, Any]] = [

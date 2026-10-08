@@ -8,7 +8,7 @@ Features:
 1. VOICE ACTIVATION:
    - Wakes up on "Hey Spark", "Hello Spark", "Yo Spark", "Hi Spark", "OK Spark".
 2. GLOBAL HOTKEY ACTIVATION:
-   - Wakes up on Windows Key + S (<cmd>+s) or Ctrl + Alt + S.
+   - Wakes up on Alt + S, Alt + Shift + S, Ctrl + Shift + S, or Backspace + S.
 3. DYNAMIC UI (TOP-MIDDLE PLASMA ORB):
    - Hidden by default.
    - Pops up instantly at top-middle of the screen upon greeting / hotkey.
@@ -246,26 +246,29 @@ def handle_awakened_interaction(initial_command: str = "", trigger_type: str = "
         WAKE_LOCK.release()
 
 # ---------------------------------------------------------------------------
-# 4. GLOBAL HOTKEY LISTENER (WIN + S / CTRL + ALT + S)
+# 4. GLOBAL HOTKEY LISTENER (ALT + S / SHIFT + ALT + S / BACKSPACE + S)
 # ---------------------------------------------------------------------------
 def start_global_hotkey_listener():
-    """Registers Windows Key + S and Ctrl + Alt + S global hotkeys."""
+    """Registers Alt + S, Alt + Shift + S, Ctrl + Shift + S, and Backspace + S global hotkeys."""
     try:
         from pynput import keyboard
 
         def _on_hotkey_pressed():
-            print("\n⚡ [HOTKEY DETECTED]: Windows + S pressed. Waking SPARK orb!")
+            print("\n⚡ [HOTKEY DETECTED]: SPARK Activation Hotkey pressed. Waking SPARK orb!")
             threading.Thread(target=handle_awakened_interaction, kwargs={"trigger_type": "hotkey"}, daemon=True).start()
 
-        # Both <cmd>+s and <ctrl>+<alt>+s supported
+        # Multi-hotkey map (bypassing Windows Search Win+S conflict)
         hotkeys = {
-            "<cmd>+s": _on_hotkey_pressed,
+            "<alt>+s": _on_hotkey_pressed,
+            "<alt>+<shift>+s": _on_hotkey_pressed,
+            "<ctrl>+<shift>+s": _on_hotkey_pressed,
+            "<backspace>+s": _on_hotkey_pressed,
             "<ctrl>+<alt>+s": _on_hotkey_pressed
         }
         listener = keyboard.GlobalHotKeys(hotkeys)
         listener.daemon = True
         listener.start()
-        print("⌨️  [HOTKEY ACTIVE]: Win + S (or Ctrl + Alt + S) registered globally.")
+        print("⌨️  [HOTKEY ACTIVE]: Alt + S (or Alt + Shift + S / Backspace + S) registered globally.")
         return listener
     except Exception as e:
         print(f"[Hotkey Warning]: Could not bind hotkey ({e}). Voice wake remains 100% active.")

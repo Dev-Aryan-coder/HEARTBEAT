@@ -88,6 +88,15 @@ NEURAL_VOICE_MAP = {
     "guy": "en-US-GuyNeural"                   # Warm, deep, friendly American
 }
 
+# ---------------------------------------------------------------------------
+# VISUAL ORB INTERFACE BRIDGE (Siri-Style Dynamic Plasma Orb at Top-Center)
+# ---------------------------------------------------------------------------
+try:
+    from spark_orb_ui import set_orb_state, launch_spark_orb_in_background
+except Exception:
+    def set_orb_state(state: str): pass
+    def launch_spark_orb_in_background(): pass
+
 def play_chime(chime_type: str = "wake"):
     """Plays subtle futuristic acoustic feedback chimes in a background thread."""
     if not winsound:
@@ -114,6 +123,7 @@ def stop_speaking() -> str:
     """Immediately interrupts and purges any ongoing speech playback (Barge-In)."""
     global IS_SPEAKING
     IS_SPEAKING = False
+    set_orb_state("idle")
     # Stop native Windows MCI audio stream
     try:
         ctypes.windll.winmm.mciSendStringW("stop spark_speech_stream", None, 0, 0)
@@ -138,6 +148,7 @@ def _play_audio_file(filepath: str, async_mode: bool = False):
         global IS_SPEAKING
         try:
             IS_SPEAKING = True
+            set_orb_state("speaking")
             alias = "spark_speech_stream"
             ctypes.windll.winmm.mciSendStringW(f"close {alias}", None, 0, 0)
             open_cmd = f'open "{filepath}" type mpegvideo alias {alias}'
@@ -149,8 +160,10 @@ def _play_audio_file(filepath: str, async_mode: bool = False):
             if not async_mode:
                 ctypes.windll.winmm.mciSendStringW(f"close {alias}", None, 0, 0)
                 IS_SPEAKING = False
+                set_orb_state("idle")
         except Exception:
             IS_SPEAKING = False
+            set_orb_state("idle")
 
     if async_mode:
         threading.Thread(target=_playback_worker, daemon=True).start()
@@ -195,10 +208,16 @@ def speak(text: str, async_mode: bool = False, chime: str = None, voice: str = N
     if not neural_success and speaker:
         try:
             IS_SPEAKING = True
+            set_orb_state("speaking")
             flags = 1 if async_mode else 0
             speaker.Speak(clean_text, flags)
             if not async_mode:
                 IS_SPEAKING = False
+                set_orb_state("idle")
+        except Exception as e:
+            IS_SPEAKING = False
+            set_orb_state("idle")
+            print(f"[Speech Notice: {e}]")
         except Exception as e:
             IS_SPEAKING = False
             print(f"[Speech Notice: {e}]")
@@ -2171,6 +2190,9 @@ async def main():
     print("         (NO FAKING • NO SHORTCUTS • REAL OS ACTUATORS)")
     print("=" * 68)
     
+    # Launch the sleek top-middle Siri-style plasma orb widget
+    launch_spark_orb_in_background()
+
     speak("SPARK is fully operational, Master Aryan. All systems online and standing by. What are your orders?", chime="wake")
 
     print("\nOperating Modes:")

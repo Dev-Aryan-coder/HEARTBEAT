@@ -14,9 +14,12 @@ from heart.pipeline import run_pipeline
 @pytest.fixture(autouse=True)
 def setup_clean_db():
     init_database()
-    # Clean test tables
+    # Clean test tables safely with child cascade
     conn = get_connection()
     cursor = conn.cursor()
+    cursor.execute("DELETE FROM temporal_edges WHERE source_cell_id IN (SELECT cell_id FROM blood_cells WHERE user_id LIKE 'BENCHMARK_%')")
+    cursor.execute("DELETE FROM ambient_events WHERE cell_id IN (SELECT cell_id FROM blood_cells WHERE user_id LIKE 'BENCHMARK_%')")
+    cursor.execute("DELETE FROM link_vault WHERE cell_id IN (SELECT cell_id FROM blood_cells WHERE user_id LIKE 'BENCHMARK_%')")
     cursor.execute("DELETE FROM blood_cells WHERE user_id LIKE 'BENCHMARK_%'")
     conn.commit()
 

@@ -74,17 +74,26 @@ def _normalize_user_id(user_id: str) -> str:
         return "MASTER_USER"
     return uid
 
-def ensure_user(user_id: str) -> None:
-    """ENSURE USER EXISTS: satisfying Foreign Key constraints for chats/messages."""
+def create_user(user_id: str, name: str = "", email: Optional[str] = None, plan_type: str = "free") -> None:
+    """Creates or updates a user record satisfying Foreign Key constraints."""
     uid = _normalize_user_id(user_id)
+    user_email = email if email else None
+    user_name = name if name else None
     conn = get_connection()
     cursor = conn.cursor()
     now = datetime.utcnow().isoformat()
     cursor.execute("""
-        INSERT OR IGNORE INTO users (user_id, created_at)
-        VALUES (?, ?)
-    """, (uid, now))
+        INSERT INTO users (user_id, name, email, plan_type, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+            name = CASE WHEN excluded.name IS NOT NULL THEN excluded.name ELSE users.name END,
+            email = CASE WHEN excluded.email IS NOT NULL THEN excluded.email ELSE users.email END
+    """, (uid, user_name, user_email, plan_type, now))
     conn.commit()
+
+def ensure_user(user_id: str) -> None:
+    """ENSURE USER EXISTS: satisfying Foreign Key constraints for chats/messages."""
+    create_user(user_id)
 
 def save_message(msg_id: str, chat_id: str, user_id: str, role: str, content: str, image_url: Optional[str] = None) -> None:
     """Saves a message — Note: Caller should handle transaction if calling multiple DB functions."""
@@ -121,6 +130,9 @@ def save_cell(cell: BloodCell) -> None:
         if cell_dict.get(key) is not None:
             cell_dict[key] = 1 if cell_dict[key] else 0
 
+    ai_full = cell_dict.get('ai_response_full') or cell_dict.get('ai_raw_response')
+    ai_raw = cell_dict.get('ai_raw_response') or cell_dict.get('ai_response_full')
+
     cursor.execute("""
         INSERT OR REPLACE INTO blood_cells (
             cell_id, user_id, chat_id, message_id, session_id,
@@ -130,19 +142,21 @@ def save_cell(cell: BloodCell) -> None:
             importance_score, keywords, topic_id, summary, 
             is_ambiguous, clarification_question, 
             expires_at, last_activated_at, activation_count, 
-            created_at, purified_at, memory_tier, superseded_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            created_at, purified_at, memory_tier, superseded_by,
+            ai_raw_response
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         cell_dict['cell_id'], cell_dict['user_id'], cell_dict['chat_id'], cell_dict['message_id'], cell_dict.get('session_id', 'unknown'),
         cell_dict['status'], cell_dict['cell_type'], cell_dict['user_raw_content'], cell_dict['user_content'],
-        cell_dict['ai_response_summary'], cell_dict['ai_response_full'], cell_dict['ai_response_link_id'],
+        cell_dict['ai_response_summary'], ai_full, cell_dict['ai_response_link_id'],
         cell_dict['is_head'], cell_dict['is_chain'], cell_dict['chain_id'], cell_dict['next_cell_id'], cell_dict['link_id'],
         cell_dict['importance_score'], cell_dict['keywords'], cell_dict['topic_id'], cell_dict['summary'],
         cell_dict['is_ambiguous'], cell_dict['clarification_question'], 
         cell_dict['expires_at'], cell_dict['last_activated_at'], cell_dict['activation_count'],
         cell_dict['created_at'], cell_dict['purified_at'],
         cell_dict['memory_tier'].value if hasattr(cell_dict.get('memory_tier'), 'value') else str(cell_dict.get('memory_tier', 'episodic')).replace("MemoryTier.", ""),
-        cell_dict.get('superseded_by')
+        cell_dict.get('superseded_by'),
+        ai_raw
     ))
     conn.commit()
 
@@ -194,6 +208,8 @@ def delete_cell(cell_id: str) -> bool:
     """Permanently prunes a cell from biological memory (Radical Transparency)."""
     conn = get_connection()
     cursor = conn.cursor()
+    cursor.execute("DELETE FROM temporal_edges WHERE source_cell_id = ?", (cell_id,))
+    cursor.execute("DELETE FROM ambient_events WHERE cell_id = ?", (cell_id,))
     cursor.execute("DELETE FROM link_vault WHERE cell_id = ?", (cell_id,))
     cursor.execute("DELETE FROM blood_cells WHERE cell_id = ?", (cell_id,))
     conn.commit()

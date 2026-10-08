@@ -138,6 +138,48 @@ def run_migrations(conn: sqlite3.Connection) -> None:
         except sqlite3.OperationalError:
             pass
     
+    # TABLE: temporal_edges (Upgrade 1: Temporal Knowledge Graph)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS temporal_edges (
+            id TEXT PRIMARY KEY,
+            subject TEXT NOT NULL,
+            predicate TEXT NOT NULL,
+            object TEXT NOT NULL,
+            valid_from TEXT NOT NULL,
+            valid_to TEXT,
+            confidence REAL DEFAULT 1.0,
+            source_cell_id TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (source_cell_id) REFERENCES blood_cells (cell_id)
+        )
+    """)
+
+    # TABLE: synaptic_links (Upgrade 3: Hebbian Synaptic Network)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS synaptic_links (
+            cell_id_a TEXT NOT NULL,
+            cell_id_b TEXT NOT NULL,
+            synaptic_weight REAL DEFAULT 1.0,
+            co_fired_count INTEGER DEFAULT 1,
+            last_fired_at TEXT NOT NULL,
+            PRIMARY KEY (cell_id_a, cell_id_b)
+        )
+    """)
+
+    # TABLE: ambient_events (Upgrade 4: Ambient Perception Stream)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ambient_events (
+            event_id TEXT PRIMARY KEY,
+            event_type TEXT NOT NULL,
+            source TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            details TEXT,
+            timestamp TEXT NOT NULL,
+            cell_id TEXT,
+            FOREIGN KEY (cell_id) REFERENCES blood_cells (cell_id)
+        )
+    """)
+
     conn.commit()
 
 def create_indexes(conn: sqlite3.Connection) -> None:
@@ -145,4 +187,9 @@ def create_indexes(conn: sqlite3.Connection) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_cells_user_id ON blood_cells(user_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_cells_status ON blood_cells(status)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_temporal_sub_pred ON temporal_edges(subject, predicate)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_temporal_active ON temporal_edges(valid_to)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_synaptic_weight ON synaptic_links(synaptic_weight DESC)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ambient_type ON ambient_events(event_type, timestamp)")
     conn.commit()
+

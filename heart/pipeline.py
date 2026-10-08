@@ -93,7 +93,9 @@ async def run_pipeline(raw_cell: BloodCell, context_messages: List[str] = [], pr
         # 🔗 LINK CELL LOGIC
         if purify_res.link_id:
             logger.info(f"Link Detected [Cell: {raw_cell.cell_id}]: ID={purify_res.link_id}")
-            save_link_vault_entry(purify_res.link_id, raw_cell.cell_id, "text", ai_response or "", 1, 1)
+            from storage.database import save_cell
+            save_cell(raw_cell)
+            save_link_vault_entry(purify_res.link_id, raw_cell.cell_id, "text", ai_response or "", 1, 1, user_id=raw_cell.user_id)
             raw_cell.link_id = purify_res.link_id
 
         # 🧪 PRESSURE LOGIC: Genuine State Supremacy via NLI Contradiction Arbitration

@@ -105,12 +105,11 @@ groq_breaker = CircuitBreaker("GroqPrimary", failure_threshold=3, recovery_time_
 openrouter_breaker = CircuitBreaker("OpenRouterSecondary", failure_threshold=3, recovery_time_seconds=30.0)
 
 def _map_model_for_groq(model: str) -> str:
-    """Maps generic or legacy model slugs to valid ultra-low-latency Groq endpoints."""
+    """Maps generic or legacy model slugs to valid active Groq endpoints."""
     m_lower = model.lower()
-    if "70b" in m_lower or "120b" in m_lower or "brain" in m_lower or "purifier" in m_lower:
-        return "llama-3.3-70b-versatile"
-    # llama3-8b-8192 or llama-3.3-70b-versatile for high reliability
-    return "llama-3.3-70b-versatile"
+    if "20b" in m_lower or "8b" in m_lower or "fast" in m_lower or "valve" in m_lower or "nervous" in m_lower:
+        return "openai/gpt-oss-20b"
+    return "openai/gpt-oss-120b"
 
 def _map_model_for_openrouter(model: str, is_large_context: bool = False) -> str:
     """Maps models to authoritative OpenRouter endpoints, defaulting to NVIDIA Nemotron 1M Context Engine."""

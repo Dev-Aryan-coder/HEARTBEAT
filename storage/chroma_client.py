@@ -84,6 +84,21 @@ class ChromaManager:
             logger.warning(f"ChromaDB search_related failed gracefully: {e}")
             return []
 
+    def add_cell(self, cell_id: str, content: str, metadata: dict = None):
+        """Direct text upsert for ambient events and sleep cycle consolidation."""
+        if not content:
+            return
+        model = get_embedding_model()
+        embedding = model.encode(content)
+        meta = metadata or {}
+        meta["summary"] = content[:500]
+        self.collection.upsert(
+            ids=[cell_id],
+            embeddings=[embedding],
+            metadatas=[meta],
+            documents=[content]
+        )
+
     def delete_cell(self, cell_id: str):
         """Evicts a cell from vector store when superseded or pruned (State Supremacy)."""
         try:
@@ -99,3 +114,6 @@ def get_chroma_manager():
     if _chroma_instance is None:
         _chroma_instance = ChromaManager()
     return _chroma_instance
+
+def get_chroma_client():
+    return get_chroma_manager()

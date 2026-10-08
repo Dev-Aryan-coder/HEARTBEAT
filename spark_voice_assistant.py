@@ -55,8 +55,14 @@ except Exception:
     keyboard = None
 
 # ---------------------------------------------------------------------------
-# 1. THE MOUTH (Windows Native SAPI5 Speech Engine)
+# 1. THE MOUTH & ACOUSTIC PRESENCE (Windows SAPI5, Barge-In & Acoustic Chimes)
 # ---------------------------------------------------------------------------
+import threading
+try:
+    import winsound
+except Exception:
+    winsound = None
+
 try:
     import win32com.client
     speaker = win32com.client.Dispatch("SAPI.SpVoice")
@@ -65,14 +71,61 @@ try:
 except Exception:
     speaker = None
 
-def speak(text: str):
-    """Speaks text aloud using Windows Native Voice."""
-    clean_text = text.replace("**", "").replace("`", "").replace("#", "").strip()
-    print(f"\n⚡ SPARK: {clean_text}\n")
+IS_SPEAKING = False
+
+def play_chime(chime_type: str = "wake"):
+    """Plays subtle futuristic acoustic feedback chimes in a background thread."""
+    if not winsound:
+        return
+    def _beep():
+        try:
+            c = (chime_type or "wake").lower().strip()
+            if c in ("wake", "listen"):
+                winsound.Beep(850, 40)
+                winsound.Beep(1250, 50)
+            elif c in ("success", "done", "confirm"):
+                winsound.Beep(1100, 35)
+                winsound.Beep(1500, 45)
+            elif c in ("interrupt", "stop", "cancel"):
+                winsound.Beep(950, 35)
+                winsound.Beep(650, 40)
+            else:
+                winsound.Beep(1000, 40)
+        except Exception:
+            pass
+    threading.Thread(target=_beep, daemon=True).start()
+
+def stop_speaking() -> str:
+    """Immediately interrupts and purges any ongoing speech (Barge-In)."""
+    global IS_SPEAKING
+    IS_SPEAKING = False
     if speaker:
         try:
-            speaker.Speak(clean_text)
+            # SVSFPurgeBeforeSpeak = 2 clears audio queue instantly
+            speaker.Speak("", 2)
+            play_chime("interrupt")
+            return "Speech output successfully halted via Barge-In."
         except Exception as e:
+            return f"Stop speaking error: {e}"
+    return "Speech engine inactive."
+
+def speak(text: str, async_mode: bool = False, chime: str = None):
+    """Speaks text aloud using Windows Native Voice with optional acoustic chime and async dispatch."""
+    global IS_SPEAKING
+    clean_text = text.replace("**", "").replace("`", "").replace("#", "").strip()
+    print(f"\n⚡ SPARK: {clean_text}\n")
+    if chime:
+        play_chime(chime)
+    if speaker and clean_text:
+        try:
+            IS_SPEAKING = True
+            # SVSFlagsAsync = 1, SVSFDefault = 0
+            flags = 1 if async_mode else 0
+            speaker.Speak(clean_text, flags)
+            if not async_mode:
+                IS_SPEAKING = False
+        except Exception as e:
+            IS_SPEAKING = False
             print(f"[Speech Notice: {e}]")
 
 
@@ -1221,6 +1274,9 @@ TOOL_DISPATCHER = {
         error_traceback=_get_arg(args, "error_traceback", "error", "traceback", "stderr")
     ),
     "execute_dag_plan": lambda args: tool_execute_dag_plan(_get_arg(args, "plan_json", "plan", "tasks")),
+    # Phase 4 Voice Presence & Barge-In
+    "stop_speaking": lambda args: stop_speaking(),
+    "play_chime": lambda args: (play_chime(_get_arg(args, "chime_type", "chime", default="wake")) or "Chime dispatched."),
 }
 
 # Formal Tool Definitions for LLM Function Calling Schema
@@ -1711,6 +1767,27 @@ TOOL_SCHEMAS = [
                 "required": ["plan_json"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "stop_speaking",
+            "description": "Instantly interrupts, silences, and purges ongoing text-to-speech output (Barge-In).",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "play_chime",
+            "description": "Plays futuristic JARVIS acoustic feedback chimes (wake, success, interrupt).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "chime_type": {"type": "string", "description": "wake, success, or interrupt"}
+                }
+            }
+        }
     }
 ]
 
@@ -1946,24 +2023,39 @@ async def process_autonomous_turn(user_input: str):
 
 
 # ---------------------------------------------------------------------------
-# 5. AMBIENT VOICE LISTENER (The Ear)
+# 5. AMBIENT VOICE LISTENER (The Ear - Low Latency & Barge-In)
 # ---------------------------------------------------------------------------
 def listen_for_voice():
-    """Real microphone capture via SpeechRecognition."""
+    """Real microphone capture with low-latency pause threshold and acoustic chime feedback."""
     try:
         import speech_recognition as sr
         r = sr.Recognizer()
+        r.pause_threshold = 0.6  # Low-latency speech endpointing (25% faster response)
+        r.non_speaking_duration = 0.4
+        r.dynamic_energy_threshold = True
+
         with sr.Microphone() as source:
             print("\n🎙️ [MONITORING EAR] Listening to your voice... (Speak or say 'Spark')")
-            r.adjust_for_ambient_noise(source, duration=0.8)
-            audio = r.listen(source, phrase_time_limit=8)
+            play_chime("wake")
+            r.adjust_for_ambient_noise(source, duration=0.4)
+            audio = r.listen(source, phrase_time_limit=8, timeout=7)
             try:
                 text = r.recognize_google(audio)
                 print(f"🗣️ Voice Detected: \"{text}\"")
+
+                # Voice-Activated Barge-In Check
+                if any(w in text.lower() for w in ["stop talking", "be quiet", "shut up", "spark stop", "quiet"]):
+                    stop_speaking()
+                    speak("Speech output halted immediately, Master Aryan.")
+                    return None
+
+                play_chime("success")
                 return text
             except sr.UnknownValueError:
                 return None
             except sr.RequestError:
+                return None
+            except sr.WaitTimeoutError:
                 return None
     except Exception as e:
         print(f"Mic status: {e}")
@@ -1979,11 +2071,12 @@ async def main():
     print("         (NO FAKING • NO SHORTCUTS • REAL OS ACTUATORS)")
     print("=" * 68)
     
-    speak("SPARK is fully operational, Master Aryan. All systems online and standing by. What are your orders?")
+    speak("SPARK is fully operational, Master Aryan. All systems online and standing by. What are your orders?", chime="wake")
 
     print("\nOperating Modes:")
     print("  - Type any command or question directly")
     print("  - Type 'voice' to activate microphone listening")
+    print("  - Type 'stop' or 'quiet' to immediately silence speech (Barge-In)")
     print("  - Type 'exit' to terminate\n")
 
     mode = "text"
@@ -1994,8 +2087,12 @@ async def main():
                 user_input = input("🗣️ Master Aryan > ").strip()
                 if not user_input:
                     continue
+                if user_input.lower() in ["stop", "quiet", "silence", "hush"]:
+                    stop_speaking()
+                    print("🛑 [BARGE-IN]: Speech output purged.")
+                    continue
                 if user_input.lower() in ["exit", "quit"]:
-                    speak("Shutting down SPARK core systems. Have a productive day, Master Aryan.")
+                    speak("Shutting down SPARK core systems. Have a productive day, Master Aryan.", chime="interrupt")
                     break
                 if user_input.lower() == "voice":
                     mode = "voice"

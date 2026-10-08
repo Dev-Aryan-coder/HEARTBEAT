@@ -90,6 +90,18 @@ def test_dispatcher_and_schemas_integrity():
     assert "ghost_type" in schema_names
     assert "read_active_word_document" in schema_names
     assert "save_crystallized_skill" in schema_names
+    assert "record_user_demonstration" in schema_names
+    assert "ask_human_feedback" in schema_names
+
+def test_demonstration_recording_timeout_graceful():
+    from spark_voice_assistant import tool_record_user_demonstration
+    res = tool_record_user_demonstration(duration_seconds=1, skill_name="test_short_demo")
+    assert "Demonstration recording ended" in res or "successfully learned" in res
+
+def test_ask_human_feedback():
+    from spark_voice_assistant import tool_ask_human_feedback
+    res = tool_ask_human_feedback("Master Aryan, does this look correct?")
+    assert "Awaiting Master Aryan's confirmation on" in res
 
 if __name__ == "__main__":
     tests = [
@@ -99,7 +111,9 @@ if __name__ == "__main__":
         test_execute_dynamic_automation,
         test_skill_crystallization,
         test_read_active_word_document_graceful_notice,
-        test_dispatcher_and_schemas_integrity
+        test_dispatcher_and_schemas_integrity,
+        test_demonstration_recording_timeout_graceful,
+        test_ask_human_feedback
     ]
     passed = 0
     for t in tests:

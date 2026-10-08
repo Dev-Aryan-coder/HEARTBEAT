@@ -164,6 +164,27 @@ graph TD
     Execution --> Memory[(🧬 HEARTBEAT Synaptic Memory)]
     Execution --> Voice[🔊 SAPI5 Voice Response]
     Voice --> User
+
+### 1.11 🎓 Learning from Human Demonstration (Show & Learn / Shadow Mode)
+*Master Aryan's Masterpiece: If SPARK makes a mistake, you show it with your mouse, and it learns permanently.*
+* **Step 1: Interactive Progress Check-In**:
+  * When SPARK completes or previews an action (e.g. creating a Word document, highlighting points):
+  * It visually displays the result and asks Master Aryan:
+    > *"Master Aryan, I have prepared the document and extracted the main AI principles. Is this looking correct to you, sir, or would you like to guide me?"*
+* **Step 2: Demonstration Recording Mode (`tool_record_user_demonstration`)**:
+  * If you say: *"No, let me show you how to do it"*:
+  * SPARK enters **Shadow Recording Mode** via background input listeners (`pynput`):
+    * Records the exact sequence of windows you click.
+    * Records the button coordinates and keystrokes you type.
+    * Master Aryan finishes the demo and presses `ESC` or says *"Done"*.
+* **Step 3: Code Synthesis & Permanent Crystallization**:
+  * SPARK compiles your recorded demonstration into a clean, parameterized Python script.
+  * Saves it into `skills/learned_user_demonstrations.py`.
+* **Step 4: Autonomous Replication**:
+  * Next time you give that command, SPARK announces:
+    > *"Executing task using the technique you taught me, Master Aryan."*
+  * It reproduces your exact mouse clicks, selections, and formatting automatically!
+
 ```
 
 

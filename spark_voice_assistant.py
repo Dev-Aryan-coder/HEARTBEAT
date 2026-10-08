@@ -46,6 +46,12 @@ try:
 except Exception:
     pyautogui = None
 
+try:
+    from pynput import mouse, keyboard
+except Exception:
+    mouse = None
+    keyboard = None
+
 # ---------------------------------------------------------------------------
 # 1. THE MOUTH (Windows Native SAPI5 Speech Engine)
 # ---------------------------------------------------------------------------
@@ -671,6 +677,134 @@ def tool_call_cloud_model(prompt: str, model: str = "opencode/nemotron-3.5-light
     except Exception as e:
         return f"OpenCode Cloud invocation notice: {e}"
 
+def tool_record_user_demonstration(duration_seconds: int = 15, skill_name: str = "custom_learned_skill") -> str:
+    """
+    Enters Shadow Recording Mode to observe Master Aryan's mouse clicks, cursor movements,
+    and keystrokes. When Master Aryan finishes (or presses ESC), SPARK translates the recorded
+    actions into a clean Python automation function and saves it permanently in skills/.
+    """
+    try:
+        from pynput import mouse as pynput_mouse, keyboard as pynput_keyboard
+    except ImportError:
+        return "Error: pynput library required for demonstration recording."
+
+    events = []
+    start_time = time.time()
+    recording_active = [True]
+
+    def on_click(x, y, button, pressed):
+        if pressed and recording_active[0]:
+            events.append({
+                "type": "click",
+                "x": int(x),
+                "y": int(y),
+                "button": "left" if "left" in str(button).lower() else "right",
+                "time_offset": round(time.time() - start_time, 2)
+            })
+
+    def on_press(key):
+        if not recording_active[0]:
+            return False
+        try:
+            if key == pynput_keyboard.Key.esc:
+                recording_active[0] = False
+                return False
+            char = getattr(key, 'char', None)
+            if char:
+                events.append({
+                    "type": "type",
+                    "text": char,
+                    "time_offset": round(time.time() - start_time, 2)
+                })
+            elif key == pynput_keyboard.Key.enter:
+                events.append({"type": "key", "key": "enter", "time_offset": round(time.time() - start_time, 2)})
+            elif key == pynput_keyboard.Key.space:
+                events.append({"type": "type", "text": " ", "time_offset": round(time.time() - start_time, 2)})
+        except Exception:
+            pass
+
+    mouse_listener = pynput_mouse.Listener(on_click=on_click)
+    key_listener = pynput_keyboard.Listener(on_press=on_press)
+
+    mouse_listener.start()
+    key_listener.start()
+
+    print(f"\n🎥 [SPARK SHADOW RECORDER]: Recording Master Aryan's demonstration for up to {duration_seconds}s (Press ESC to finish)...")
+    
+    max_wait = float(duration_seconds)
+    while recording_active[0] and (time.time() - start_time) < max_wait:
+        time.sleep(0.1)
+
+    recording_active[0] = False
+    try:
+        mouse_listener.stop()
+        key_listener.stop()
+    except Exception:
+        pass
+
+    if not events:
+        return "Demonstration recording ended: No user interactions detected."
+
+    clicks_count = sum(1 for e in events if e["type"] == "click")
+    keystrokes_count = sum(1 for e in events if e["type"] in ("type", "key"))
+
+    code_lines = [
+        "import time",
+        "import pyautogui",
+        "",
+        "def execute_learned_skill():",
+        f"    # Generated from Master Aryan's live demonstration ({clicks_count} clicks, {keystrokes_count} keystrokes)",
+        "    pyautogui.FAILSAFE = True"
+    ]
+
+    last_t = 0.0
+    accumulated_text = ""
+    for ev in events:
+        t_gap = max(0.05, min(1.0, ev["time_offset"] - last_t))
+        last_t = ev["time_offset"]
+
+        if ev["type"] == "type":
+            accumulated_text += ev["text"]
+            continue
+        
+        if accumulated_text:
+            code_lines.append(f"    pyautogui.write({repr(accumulated_text)}, interval=0.03)")
+            accumulated_text = ""
+
+        if ev["type"] == "click":
+            code_lines.append(f"    time.sleep({t_gap})")
+            code_lines.append(f"    pyautogui.moveTo({ev['x']}, {ev['y']}, duration=0.4)")
+            code_lines.append(f"    pyautogui.click(button={repr(ev['button'])})")
+        elif ev["type"] == "key":
+            code_lines.append(f"    time.sleep({t_gap})")
+            code_lines.append(f"    pyautogui.press({repr(ev['key'])})")
+
+    if accumulated_text:
+        code_lines.append(f"    pyautogui.write({repr(accumulated_text)}, interval=0.03)")
+
+    code_lines.append("")
+    code_lines.append("if __name__ == '__main__':")
+    code_lines.append("    execute_learned_skill()")
+
+    generated_script = "\n".join(code_lines)
+
+    save_res = tool_save_crystallized_skill(
+        skill_name=skill_name,
+        code=generated_script,
+        description=f"Demonstration learned directly from Master Aryan: {clicks_count} clicks, {keystrokes_count} keystrokes."
+    )
+
+    return (
+        f"Demonstration successfully learned and crystallized!\n"
+        f"Recorded: {clicks_count} clicks, {keystrokes_count} keystrokes across {round(time.time() - start_time, 1)} seconds.\n"
+        f"{save_res}"
+    )
+
+def tool_ask_human_feedback(question: str) -> str:
+    """Asks Master Aryan for visual verification or guidance, confirming if an action looks correct."""
+    speak(question)
+    return f"Awaiting Master Aryan's confirmation on: '{question}'"
+
 # Biological Data Structure In-Memory State Engines
 from cells.memory_structures import (
     PrefixTrie, LRUMemoryCache, MetabolicPriorityQueue,
@@ -681,7 +815,7 @@ SPARK_PREFIX_TRIE = PrefixTrie()
 SPARK_BLOOM_FILTER = MemoryBloomFilter(size_bits=4096)
 SPARK_METABOLIC_HEAP = MetabolicPriorityQueue()
 
-# Master Tool Dispatcher Map with full 28-tool actuator coverage
+# Master Tool Dispatcher Map with full 30-tool actuator coverage
 TOOL_DISPATCHER = {
     "get_current_time": lambda args: tool_get_current_time(timezone=_get_arg(args, "timezone", default="local")),
     "get_system_vitals": lambda args: tool_get_system_vitals(),
@@ -744,6 +878,11 @@ TOOL_DISPATCHER = {
         prompt=_get_arg(args, "prompt", "query", "text"),
         model=_get_arg(args, "model", default="opencode/nemotron-3.5-lightning-free")
     ),
+    "record_user_demonstration": lambda args: tool_record_user_demonstration(
+        duration_seconds=int(_get_arg(args, "duration_seconds", "duration", default=15)),
+        skill_name=_get_arg(args, "skill_name", "name", default="custom_learned_skill")
+    ),
+    "ask_human_feedback": lambda args: tool_ask_human_feedback(_get_arg(args, "question", "prompt", "msg")),
 }
 
 # Formal Tool Definitions for LLM Function Calling Schema
@@ -1133,6 +1272,34 @@ TOOL_SCHEMAS = [
                 "required": ["prompt"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "record_user_demonstration",
+            "description": "Enters Shadow Recording Mode to observe Master Aryan's mouse clicks and keystrokes on screen, learning and crystallizing his exact demonstration into a permanent reusable skill.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "duration_seconds": {"type": "integer", "description": "Max seconds to record before auto-stopping, default 15"},
+                    "skill_name": {"type": "string", "description": "Name for the learned skill, default 'custom_learned_skill'"}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ask_human_feedback",
+            "description": "Asks Master Aryan for visual verification or guidance to confirm if an on-screen document or action is correct.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string", "description": "The question to ask Master Aryan"}
+                },
+                "required": ["question"]
+            }
+        }
     }
 ]
 
@@ -1191,7 +1358,8 @@ OPERATIONAL STRATEGY & DUAL-ROUTE RULES:
 2. ROUTE 2 (INFINITE SCALABILITY FALLBACK): If Master Aryan requests an action with NO dedicated tool (such as creating a formatted Word/Excel document, complex desktop automation, or specialized scripts), invoke `execute_dynamic_automation`. Write a standalone Python script in the `python_code` argument that accomplishes the task and handles its own imports.
 3. SKILL CRYSTALLIZATION: When you successfully execute a new custom task, call `save_crystallized_skill` so you permanently retain that skill for future use.
 4. ACTIVE DOCUMENT UNDERSTANDING: If Master Aryan asks about an open Word document, use `read_active_word_document` to read it live from memory and explain it clearly in simple words.
-5. Address the user respectfully as 'Master Aryan' or 'sir'. Speak concisely and elegantly with complete confidence.
+5. SHOW & LEARN (DEMONSTRATION LEARNING): If Master Aryan wants to show you how to do something, or if you need to confirm if an on-screen document or action is correct, invoke `ask_human_feedback` or `record_user_demonstration`. You will observe his mouse clicks and keystrokes and learn his exact technique permanently into skills/.
+6. Address the user respectfully as 'Master Aryan' or 'sir'. Speak concisely and elegantly with complete confidence.
 """
 
 conversation_history: List[Dict[str, Any]] = [

@@ -2172,39 +2172,27 @@ async def process_autonomous_turn(user_input: str):
 def listen_for_voice():
     """Real microphone capture with low-latency pause threshold and acoustic chime feedback."""
     try:
-        import speech_recognition as sr
-        r = sr.Recognizer()
-        r.pause_threshold = 0.6  # Low-latency speech endpointing (25% faster response)
-        r.non_speaking_duration = 0.4
-        r.dynamic_energy_threshold = True
+        from microphone_driver import recognize_live_speech
 
         cancel_spark_orb_auto_hide()
         show_spark_orb()
         set_orb_state("listening")
 
-        with sr.Microphone() as source:
-            print("\n🎙️ [MONITORING EAR] Listening to your voice... (Speak or say 'Spark')")
-            play_chime("wake")
-            r.adjust_for_ambient_noise(source, duration=0.4)
-            audio = r.listen(source, phrase_time_limit=8, timeout=7)
-            try:
-                text = r.recognize_google(audio)
-                print(f"🗣️ Voice Detected: \"{text}\"")
+        print("\n🎙️ [MONITORING EAR] Listening to your voice... (Speak or say 'Spark')")
+        play_chime("wake")
+        text = recognize_live_speech(timeout=7.0, phrase_time_limit=10.0)
+        if text:
+            print(f"🗣️ Voice Detected: \"{text}\"")
 
-                # Voice-Activated Barge-In Check
-                if any(w in text.lower() for w in ["stop talking", "be quiet", "shut up", "spark stop", "quiet"]):
-                    stop_speaking()
-                    speak("Speech output halted immediately, Master Aryan.")
-                    return None
+            # Voice-Activated Barge-In Check
+            if any(w in text.lower() for w in ["stop talking", "be quiet", "shut up", "spark stop", "quiet"]):
+                stop_speaking()
+                speak("Speech output halted immediately, Master Aryan.")
+                return None
 
-                play_chime("success")
-                return text
-            except sr.UnknownValueError:
-                return None
-            except sr.RequestError:
-                return None
-            except sr.WaitTimeoutError:
-                return None
+            play_chime("success")
+            return text
+        return None
     except Exception as e:
         print(f"Mic status: {e}")
         return None

@@ -22,10 +22,7 @@ import subprocess
 
 WORKSPACE_DIR = os.path.dirname(os.path.abspath(__file__))
 DAEMON_SCRIPT = os.path.join(WORKSPACE_DIR, "spark_sentinel_daemon.py")
-PYTHON_DIR = os.path.dirname(sys.executable)
-PYTHONW_EXE = os.path.join(PYTHON_DIR, "pythonw.exe")
-if not os.path.exists(PYTHONW_EXE):
-    PYTHONW_EXE = sys.executable  # Fallback
+PYTHON_EXE = sys.executable
 
 STARTUP_FOLDER = os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup")
 VBS_PATH = os.path.join(STARTUP_FOLDER, "SPARK_Sentinel.vbs")
@@ -38,7 +35,7 @@ def install_autostart() -> bool:
     print(" ⚡ INSTALLING SPARK 24/7 AUTOSTART ON LAPTOP BOOT")
     print("=" * 68)
     print(f"📁 Daemon Script: {DAEMON_SCRIPT}")
-    print(f"🐍 Pythonw Executable: {PYTHONW_EXE}")
+    print(f"🐍 Python Executable: {PYTHON_EXE}")
     print(f"🚀 Startup Folder: {STARTUP_FOLDER}")
 
     success_count = 0
@@ -48,7 +45,8 @@ def install_autostart() -> bool:
         os.makedirs(STARTUP_FOLDER, exist_ok=True)
         vbs_content = (
             'Set WshShell = CreateObject("WScript.Shell")\n'
-            f'WshShell.Run """{PYTHONW_EXE}"" ""{DAEMON_SCRIPT}""", 0, False\n'
+            f'WshShell.CurrentDirectory = "{WORKSPACE_DIR}"\n'
+            f'WshShell.Run """{PYTHON_EXE}"" ""{DAEMON_SCRIPT}""", 0, False\n'
             'Set WshShell = Nothing\n'
         )
         with open(VBS_PATH, "w", encoding="utf-8") as f:
@@ -60,7 +58,7 @@ def install_autostart() -> bool:
 
     # 2. Register in Windows Registry Run key
     try:
-        cmd_str = f'"{PYTHONW_EXE}" "{DAEMON_SCRIPT}"'
+        cmd_str = f'"{PYTHON_EXE}" "{DAEMON_SCRIPT}"'
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_KEY_PATH, 0, winreg.KEY_SET_VALUE) as key:
             winreg.SetValueEx(key, REG_NAME, 0, winreg.REG_SZ, cmd_str)
         print(f"✅ [SUCCESS]: Windows Registry Run key '{REG_NAME}' registered.")
@@ -112,7 +110,8 @@ def check_status():
 def start_daemon_now():
     """Immediately launches the background sentinel daemon via pythonw."""
     print(f"🚀 Launching SPARK Sentinel now in background...")
-    subprocess.Popen([PYTHONW_EXE, DAEMON_SCRIPT], creationflags=subprocess.DETACHED_PROCESS if hasattr(subprocess, 'DETACHED_PROCESS') else 0)
+    flags = subprocess.DETACHED_PROCESS if hasattr(subprocess, 'DETACHED_PROCESS') else 0
+    subprocess.Popen([PYTHON_EXE, DAEMON_SCRIPT], cwd=WORKSPACE_DIR, creationflags=flags)
     print("✅ SPARK Sentinel is now active in background!")
 
 if __name__ == "__main__":

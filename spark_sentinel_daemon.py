@@ -37,6 +37,16 @@ WORKSPACE_DIR = os.path.dirname(os.path.abspath(__file__))
 if WORKSPACE_DIR not in sys.path:
     sys.path.insert(0, WORKSPACE_DIR)
 
+# Guard against None stdout/stderr when running via pythonw.exe
+if sys.stdout is None or sys.stderr is None:
+    log_dir = os.path.join(WORKSPACE_DIR, "data")
+    os.makedirs(log_dir, exist_ok=True)
+    log_fp = open(os.path.join(log_dir, "spark_sentinel.log"), "a", encoding="utf-8", buffering=1)
+    if sys.stdout is None:
+        sys.stdout = log_fp
+    if sys.stderr is None:
+        sys.stderr = log_fp
+
 from spark_orb_ui import (
     launch_spark_orb_in_background,
     set_orb_state,
@@ -53,6 +63,7 @@ from spark_voice_assistant import (
     process_autonomous_turn,
     conversation_history
 )
+from microphone_driver import recognize_live_speech, is_microphone_available
 
 CHECKPOINT_FILE = os.path.join(WORKSPACE_DIR, "data", "checkpoints", "spark_autosave_state.json")
 SENTINEL_RUNNING = True
@@ -154,24 +165,22 @@ def check_for_wake_phrase(text: str) -> Tuple[bool, str]:
             return True, remainder
     return False, ""
 
-def listen_for_wake_greeting(recognizer, mic) -> Tuple[bool, str]:
-    """Listens continuously in low-latency ambient mode for wake phrase."""
+def listen_for_wake_greeting() -> Tuple[bool, str]:
+    """Listens continuously in low-latency ambient mode for wake phrase via native hardware mic."""
     try:
-        recognizer.adjust_for_ambient_noise(mic, duration=0.3)
-        audio = recognizer.listen(mic, phrase_time_limit=5, timeout=4)
-        raw_text = recognizer.recognize_google(audio)
-        return check_for_wake_phrase(raw_text)
+        raw_text = recognize_live_speech(timeout=3.5, phrase_time_limit=4.5)
+        if raw_text:
+            return check_for_wake_phrase(raw_text)
+        return False, ""
     except Exception:
         return False, ""
 
-def listen_for_command_after_wake(recognizer, mic) -> Optional[str]:
+def listen_for_command_after_wake() -> Optional[str]:
     """Listens attentively for Master Aryan's full command after waking."""
     try:
         set_orb_state("listening")
         play_chime("wake")
-        recognizer.adjust_for_ambient_noise(mic, duration=0.3)
-        audio = recognizer.listen(mic, phrase_time_limit=10, timeout=8)
-        text = recognizer.recognize_google(audio)
+        text = recognize_live_speech(timeout=8.0, phrase_time_limit=12.0)
         return text
     except Exception:
         return None
@@ -197,11 +206,6 @@ def handle_awakened_interaction(initial_command: str = "", trigger_type: str = "
         show_spark_orb()
         set_orb_state("listening")
 
-        import speech_recognition as sr
-        recognizer = sr.Recognizer()
-        recognizer.pause_threshold = 0.6
-        recognizer.dynamic_energy_threshold = True
-
         command = initial_command.strip()
 
         if not command:
@@ -210,9 +214,8 @@ def handle_awakened_interaction(initial_command: str = "", trigger_type: str = "
             speak("Yes, Master Aryan? I am listening.", async_mode=False)
             set_orb_state("listening")
 
-            # Capture spoken command
-            with sr.Microphone() as source:
-                command = listen_for_command_after_wake(recognizer, source) or ""
+            # Capture spoken command via native hardware mic
+            command = listen_for_command_after_wake() or ""
 
         if command:
             # Check for dismissal commands
@@ -306,30 +309,26 @@ def run_sentinel_daemon():
             autosave_all_state(reason="periodic_60s_heartbeat")
     threading.Thread(target=_periodic_saver, daemon=True).start()
 
-    # 5. Microphone voice perception sentinel loop
+    # 5. Microphone voice perception sentinel loop using native Realtek driver
     try:
-        import speech_recognition as sr
-        recognizer = sr.Recognizer()
-        recognizer.pause_threshold = 0.5
-        recognizer.dynamic_energy_threshold = True
+        mic_ok, mic_dev = is_microphone_available()
+        print(f"\n👂 [LISTENING]: Standing by for 'Hey Spark', 'Yo Spark', or Alt+S...")
+        print(f"🎙️ [HARDWARE MIC]: {mic_dev} ({'ACTIVE' if mic_ok else 'CHECK HARDWARE'})")
 
-        print("\n👂 [LISTENING]: Standing by for 'Hey Spark', 'Yo Spark', or Win+S...")
-
-        with sr.Microphone() as mic:
-            while SENTINEL_RUNNING:
-                if not WAKE_LOCK.locked():
-                    try:
-                        woke, remainder = listen_for_wake_greeting(recognizer, mic)
-                        if woke:
-                            print(f"\n⚡ [WAKE DETECTED]: Master Aryan greeted SPARK! (Remainder: '{remainder}')")
-                            threading.Thread(
-                                target=handle_awakened_interaction,
-                                kwargs={"initial_command": remainder, "trigger_type": "voice"},
-                                daemon=True
-                            ).start()
-                    except Exception:
-                        pass
-                time.sleep(0.3)
+        while SENTINEL_RUNNING:
+            if not WAKE_LOCK.locked():
+                try:
+                    woke, remainder = listen_for_wake_greeting()
+                    if woke:
+                        print(f"\n⚡ [WAKE DETECTED]: Master Aryan greeted SPARK! (Remainder: '{remainder}')")
+                        threading.Thread(
+                            target=handle_awakened_interaction,
+                            kwargs={"initial_command": remainder, "trigger_type": "voice"},
+                            daemon=True
+                        ).start()
+                except Exception:
+                    pass
+            time.sleep(0.2)
 
     except Exception as e:
         print(f"[Sentinel Microphone Error: {e}]")
